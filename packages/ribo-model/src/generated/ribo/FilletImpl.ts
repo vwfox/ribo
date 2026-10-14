@@ -17,7 +17,7 @@ import { RiboPackage } from './RiboPackage.js';
  */
 export class FilletImpl extends EdgeFeatureImpl implements Fillet {
   // Feature ID Constants (eLiterals)
-  static readonly RADIUS: number = 3;
+  static readonly RADIUS: number = 4;
 
   // Private fields
   private _radius: string = "2";

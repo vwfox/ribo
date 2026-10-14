@@ -17,7 +17,7 @@ import { RiboPackage } from './RiboPackage.js';
  */
 export class ChamferImpl extends EdgeFeatureImpl implements Chamfer {
   // Feature ID Constants (eLiterals)
-  static readonly DISTANCE: number = 3;
+  static readonly DISTANCE: number = 4;
 
   // Private fields
   private _distance: string = "1";

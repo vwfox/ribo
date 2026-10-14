@@ -29,6 +29,7 @@ import {
   type FeatureProblem,
   type HoleFeature,
   type LoopSegment,
+  type Matrix,
   type ModifierFeature,
   type PlanFeature,
   type PlanRegion,
@@ -51,6 +52,8 @@ const MESH_OPTIONS = { tolerance: 0.02, angularTolerance: 10 }
 
 export interface BuiltDesign {
   bodies: Shape3D[]
+  /** Component index of each body */
+  components: number[]
   problems: FeatureProblem[]
 }
 
@@ -374,7 +377,14 @@ function modify(bodies: Shape3D[], feature: ModifierFeature): { bodies: Shape3D[
 export function buildDesign(plan: BuildPlan): BuiltDesign {
   const sketches = new Map<number, SketchFeature>()
   const problems: FeatureProblem[] = []
-  let bodies: Shape3D[] = []
+  let bodies: { shape: Shape3D; component: number }[] = []
+
+  /** Runs an operation on the bodies of one component; the others stay as they are */
+  const within = (component: number, operation: (own: Shape3D[]) => Shape3D[]) => {
+    const own = bodies.filter((b) => b.component === component).map((b) => b.shape)
+    const others = bodies.filter((b) => b.component !== component)
+    bodies = [...others, ...operation(own).map((shape) => ({ shape, component }))]
+  }
 
   for (const feature of plan.features) {
     try {
@@ -387,31 +397,54 @@ export function buildDesign(plan: BuildPlan): BuiltDesign {
       if (feature.kind === 'hole') {
         const sketch = sketches.get(feature.sketch)
         if (!sketch) throw new Error('Die Skizze dieser Bohrung ist nicht verfügbar')
-        if (bodies.length === 0) throw new Error('Kein Körper zum Bohren vorhanden')
-        const tool = holeTool(sketch, feature)
-        bodies = bodies.map((body) => {
-          const next = body.cut(tool)
-          body.delete()
+        within(feature.component, (own) => {
+          if (own.length === 0) throw new Error('Kein Körper zum Bohren vorhanden')
+          const tool = holeTool(sketch, feature)
+          const next = own.map((body) => {
+            const drilled = body.cut(tool)
+            body.delete()
+            return drilled
+          })
+          tool.delete()
           return next
         })
-        tool.delete()
         continue
       }
       if (feature.kind === 'fillet' || feature.kind === 'chamfer' || feature.kind === 'shell') {
-        const { bodies: next, missing } = modify(bodies, feature)
-        bodies = next
-        if (missing) problems.push({ index: feature.index, message: missing })
+        within(feature.component, (own) => {
+          const { bodies: next, missing } = modify(own, feature)
+          if (missing) problems.push({ index: feature.index, message: missing })
+          return next
+        })
         continue
       }
       const sketch = sketches.get(feature.sketch)
       if (!sketch) throw new Error('Die Skizze dieses Features ist nicht verfügbar')
-      bodies = combine(bodies, toolOf(sketch, feature), feature)
+      const tool = toolOf(sketch, feature)
+      within(feature.component, (own) => combine(own, tool, feature))
     } catch (error) {
       problems.push({ index: feature.index, message: messageOf(error) })
     }
   }
 
-  return { bodies, problems }
+  return { bodies: bodies.map((b) => b.shape), components: bodies.map((b) => b.component), problems }
+}
+
+/** Places a shape with a rigid matrix (column-major) */
+export function transformed(shape: Shape3D, m: Matrix): Shape3D {
+  const oc = getOC()
+  const trsf = new oc.gp_Trsf()
+  try {
+    trsf.SetValues(m[0]!, m[4]!, m[8]!, m[12]!, m[1]!, m[5]!, m[9]!, m[13]!, m[2]!, m[6]!, m[10]!, m[14]!)
+    const builder = new oc.BRepBuilderAPI_Transform(shape.wrapped, trsf, true, false)
+    try {
+      return cast(builder.ModifiedShape(shape.wrapped)) as Shape3D
+    } finally {
+      builder.delete()
+    }
+  } finally {
+    trsf.delete()
+  }
 }
 
 /** The plane of a face group when all its normals agree, i.e. the face is flat */
@@ -427,7 +460,7 @@ function planeOfGroup(mesh: { vertices: number[]; normals: number[]; triangles: 
   return { origin, normal: n }
 }
 
-export function meshBody(body: Shape3D): BodyMesh {
+export function meshBody(body: Shape3D, component = 0): BodyMesh {
   const mesh = body.mesh(MESH_OPTIONS)
   const edges = body.meshEdges(MESH_OPTIONS)
   const [[minX, minY, minZ], [maxX, maxY, maxZ]] = body.boundingBox.bounds
@@ -445,6 +478,7 @@ export function meshBody(body: Shape3D): BodyMesh {
     edgeGroups,
     bounds: [minX, minY, minZ, maxX, maxY, maxZ],
     volume: measureVolume(body),
+    component,
     faces,
   }
 }

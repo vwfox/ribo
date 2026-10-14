@@ -10,6 +10,7 @@ import { createContainmentEList } from '@emfts/core';
 import type { EClass, EStructuralFeature, EList, EReference } from '@emfts/core';
 import type { Parameter } from './Parameter.js';
 import type { Feature } from './Feature.js';
+import type { Component } from './Component.js';
 import type { Design } from './Design.js';
 import { RiboPackage } from './RiboPackage.js';
 
@@ -23,12 +24,16 @@ export class DesignImpl extends BasicEObject implements Design {
   static readonly PARAMETERS: number = 1;
   static readonly FEATURES: number = 2;
   static readonly ROLLBACK: number = 3;
+  static readonly COMPONENTS: number = 4;
+  static readonly ACTIVE_COMPONENT: number = 5;
 
   // Private fields
   private _name?: string;
   private _parameters!: EList<Parameter>;
   private _features!: EList<Feature>;
   private _rollback: number = -1;
+  private _components!: EList<Component>;
+  private _activeComponent?: Component;
 
   /**
    * Returns the EClass of this object
@@ -100,6 +105,37 @@ export class DesignImpl extends BasicEObject implements Design {
     }
   }
 
+  get components(): EList<Component> {
+    if (!this._components) {
+      this._components = createContainmentEList<any>(this, this.eClass().getEStructuralFeature('components') as EReference);
+    }
+    return this._components;
+  }
+
+  get activeComponent(): Component {
+    return this._activeComponent!;
+  }
+
+  set activeComponent(value: Component) {
+    const oldValue = this._activeComponent;
+    this._activeComponent = value;
+    if (this.eDeliver()) {
+      this.eNotify({
+        getNotifier: () => this,
+        getEventType: () => 1, // SET
+        getFeature: () => this.eClass().getEStructuralFeature(DesignImpl.ACTIVE_COMPONENT),
+        getOldValue: () => oldValue,
+        getNewValue: () => value,
+        getPosition: () => -1,
+        wasSet: () => true,
+        isTouch: () => false,
+        isReset: () => false,
+        getFeatureID: () => DesignImpl.ACTIVE_COMPONENT,
+        merge: () => false
+      });
+    }
+  }
+
   // Reflective API
 
   /**
@@ -116,6 +152,10 @@ export class DesignImpl extends BasicEObject implements Design {
         return this.features;
       case DesignImpl.ROLLBACK:
         return this.rollback;
+      case DesignImpl.COMPONENTS:
+        return this.components;
+      case DesignImpl.ACTIVE_COMPONENT:
+        return this.activeComponent;
       default:
         return super.eGet(feature);
     }
@@ -145,6 +185,15 @@ export class DesignImpl extends BasicEObject implements Design {
         this.rollback = newValue as number;
         super.eSet(feature, newValue);
         break;
+      case DesignImpl.COMPONENTS:
+        this.components.clear();
+        this.components.addAll(newValue as any[]);
+        super.eSet(feature, newValue);
+        break;
+      case DesignImpl.ACTIVE_COMPONENT:
+        this.activeComponent = newValue as Component;
+        super.eSet(feature, newValue);
+        break;
       default:
         super.eSet(feature, newValue);
     }
@@ -164,6 +213,10 @@ export class DesignImpl extends BasicEObject implements Design {
         return this._features !== undefined && !this._features.isEmpty();
       case DesignImpl.ROLLBACK:
         return this._rollback !== -1;
+      case DesignImpl.COMPONENTS:
+        return this._components !== undefined && !this._components.isEmpty();
+      case DesignImpl.ACTIVE_COMPONENT:
+        return this._activeComponent !== undefined;
       default:
         return super.eIsSet(feature);
     }
@@ -186,6 +239,12 @@ export class DesignImpl extends BasicEObject implements Design {
         return;
       case DesignImpl.ROLLBACK:
         this._rollback = -1;
+        return;
+      case DesignImpl.COMPONENTS:
+        if (this._components) this._components.clear();
+        return;
+      case DesignImpl.ACTIVE_COMPONENT:
+        this._activeComponent = undefined;
         return;
       default:
         super.eUnset(feature);

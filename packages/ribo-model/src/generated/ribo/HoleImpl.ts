@@ -19,15 +19,15 @@ import { RiboPackage } from './RiboPackage.js';
  */
 export class HoleImpl extends FeatureImpl implements Hole {
   // Feature ID Constants (eLiterals)
-  static readonly SKETCH: number = 2;
-  static readonly HOLE_TYPE: number = 3;
-  static readonly PRESET: number = 4;
-  static readonly DIAMETER: number = 5;
-  static readonly DEPTH: number = 6;
-  static readonly HEAD_DIAMETER: number = 7;
-  static readonly HEAD_DEPTH: number = 8;
-  static readonly COUNTERSINK_ANGLE: number = 9;
-  static readonly REVERSED: number = 10;
+  static readonly SKETCH: number = 3;
+  static readonly HOLE_TYPE: number = 4;
+  static readonly PRESET: number = 5;
+  static readonly DIAMETER: number = 6;
+  static readonly DEPTH: number = 7;
+  static readonly HEAD_DIAMETER: number = 8;
+  static readonly HEAD_DEPTH: number = 9;
+  static readonly COUNTERSINK_ANGLE: number = 10;
+  static readonly REVERSED: number = 11;
 
   // Private fields
   private _sketch?: Sketch;

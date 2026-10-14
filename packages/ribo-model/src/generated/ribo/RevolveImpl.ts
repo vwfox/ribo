@@ -19,9 +19,9 @@ import { RiboPackage } from './RiboPackage.js';
  */
 export class RevolveImpl extends ProfileFeatureImpl implements Revolve {
   // Feature ID Constants (eLiterals)
-  static readonly AXIS_LINE: number = 5;
-  static readonly AXIS: number = 6;
-  static readonly ANGLE: number = 7;
+  static readonly AXIS_LINE: number = 6;
+  static readonly AXIS: number = 7;
+  static readonly ANGLE: number = 8;
 
   // Private fields
   private _axisLine?: SketchLine;

@@ -19,7 +19,7 @@ import { RiboPackage } from './RiboPackage.js';
  */
 export abstract class EdgeFeatureImpl extends FeatureImpl implements EdgeFeature {
   // Feature ID Constants (eLiterals)
-  static readonly EDGES: number = 2;
+  static readonly EDGES: number = 3;
 
   // Private fields
   private _edges!: EList<EdgeSelection>;

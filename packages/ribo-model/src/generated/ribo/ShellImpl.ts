@@ -19,9 +19,9 @@ import { RiboPackage } from './RiboPackage.js';
  */
 export class ShellImpl extends FeatureImpl implements Shell {
   // Feature ID Constants (eLiterals)
-  static readonly THICKNESS: number = 2;
-  static readonly DEPTH: number = 3;
-  static readonly FACES: number = 4;
+  static readonly THICKNESS: number = 3;
+  static readonly DEPTH: number = 4;
+  static readonly FACES: number = 5;
 
   // Private fields
   private _thickness: string = "2";

@@ -10,8 +10,10 @@ import {
   FeatureOperation,
   SketchAxis,
   SketchPlane,
+  isComponent,
   isConstructionPlane,
   isEdgeFeature,
+  isJoint,
   isExtrude,
   isFillet,
   isHole,
@@ -25,6 +27,7 @@ import {
   type SketchLine,
 } from 'ribo-model'
 import ToggleSwitch from 'primevue/toggleswitch'
+import Slider from 'primevue/slider'
 import { HoleType, type Hole } from 'ribo-model'
 import ExpressionField from './ExpressionField.vue'
 import { HOLE_PRESETS } from './holePresets'
@@ -116,6 +119,53 @@ const TILT_AXES = [
   { label: 'um X', value: SketchAxis.X },
   { label: 'um Y', value: SketchAxis.Y },
 ]
+
+const JOINT_KINDS = [
+  { label: 'Starr', value: 'Rigid' },
+  { label: 'Scharnier', value: 'Revolute' },
+  { label: 'Schiebe', value: 'Slider' },
+]
+
+/** Value of a joint's motion as a number, for the slider; expressions that are no plain number show 0 */
+const jointValue = computed(() => {
+  void props.document.revision.value
+  const joint = selected.value
+  if (!isJoint(joint)) return 0
+  const source = joint.kind === 'Slider' ? joint.offset : joint.angle
+  const value = Number(source)
+  return Number.isFinite(value) ? value : 0
+})
+
+let sliding = false
+/** Moving the joint by the slider is one undo step per gesture */
+function slide(value: number | number[]) {
+  const joint = selected.value
+  if (!isJoint(joint)) return
+  if (!sliding) {
+    sliding = true
+    props.document.history.begin('Gelenk bewegen')
+  }
+  const v = String(Math.round((Array.isArray(value) ? value[0]! : value) * 10) / 10)
+  if (joint.kind === 'Slider') joint.offset = v
+  else joint.angle = v
+}
+
+function slideEnd() {
+  if (!sliding) return
+  sliding = false
+  props.document.history.end()
+}
+
+function resetOrigins() {
+  const joint = selected.value
+  if (!isJoint(joint)) return
+  props.document.history.record('Gelenkursprünge neu', () => {
+    joint.first = undefined as never
+    joint.second = undefined as never
+  })
+}
+
+const originName = (origin: { component?: { name?: string } } | undefined) => (origin ? origin.component?.name ?? design.value.name ?? 'Hauptbauteil' : '–')
 
 const HOLE_TYPES = [
   { label: 'Einfach', value: HoleType.Simple },
@@ -415,6 +465,90 @@ function setAxis(value: string) {
       </div>
     </template>
 
+    <!-- Component -->
+    <template v-else-if="isComponent(selected)">
+      <label class="ribo-field">
+        <span class="ribo-field-label">Name</span>
+        <InputText :model-value="selected.name" size="small" fluid @update:model-value="selected.name = $event ?? ''" />
+      </label>
+      <div class="ribo-button-row">
+        <Button
+          :label="design.activeComponent === selected ? 'Aktiv' : 'Aktivieren'"
+          :icon="design.activeComponent === selected ? 'pi pi-circle-fill' : 'pi pi-circle'"
+          :disabled="design.activeComponent === selected"
+          size="small"
+          severity="secondary"
+          @click="document.activate(selected)"
+        />
+        <Button label="Zum Hauptbauteil" size="small" text @click="document.activate(undefined)" />
+      </div>
+      <label class="ribo-switch">
+        <ToggleSwitch :model-value="selected.grounded" @update:model-value="selected.grounded = $event" />
+        <span>Fixiert (bewegt sich durch Gelenke nicht)</span>
+      </label>
+      <label class="ribo-switch">
+        <ToggleSwitch :model-value="selected.visible" @update:model-value="selected.visible = $event" />
+        <span>Sichtbar</span>
+      </label>
+      <div class="ribo-field">
+        <span class="ribo-field-label">Lage (gilt, solange kein Gelenk das Bauteil setzt)</span>
+      </div>
+      <div class="ribo-grid3">
+        <ExpressionField v-model="selected.positionX" label="X" unit="mm" :document="document" />
+        <ExpressionField v-model="selected.positionY" label="Y" unit="mm" :document="document" />
+        <ExpressionField v-model="selected.positionZ" label="Z" unit="mm" :document="document" />
+        <ExpressionField v-model="selected.rotationX" label="Drehung X" unit="°" :document="document" />
+        <ExpressionField v-model="selected.rotationY" label="Drehung Y" unit="°" :document="document" />
+        <ExpressionField v-model="selected.rotationZ" label="Drehung Z" unit="°" :document="document" />
+      </div>
+    </template>
+
+    <!-- Joint -->
+    <template v-else-if="isJoint(selected)">
+      <label class="ribo-field">
+        <span class="ribo-field-label">Name</span>
+        <InputText :model-value="selected.name" size="small" fluid @update:model-value="selected.name = $event ?? ''" />
+      </label>
+      <div class="ribo-field">
+        <span class="ribo-field-label">Art</span>
+        <SelectButton
+          :model-value="selected.kind"
+          :options="JOINT_KINDS"
+          option-label="label"
+          option-value="value"
+          :allow-empty="false"
+          size="small"
+          @update:model-value="selected.kind = $event"
+        />
+      </div>
+      <div class="ribo-field">
+        <span class="ribo-field-label">Ursprünge</span>
+        <span>1: {{ originName(selected.first) }} · 2: {{ originName(selected.second) }}</span>
+        <small v-if="!selected.first || !selected.second" class="ribo-field-hint">
+          Im Ansichtsfenster eine Kreiskante (Achse, z. B. für Scharniere) oder eine ebene Fläche anklicken – erst am Bauteil, das stehen bleibt, dann am beweglichen.
+        </small>
+        <Button v-else label="Ursprünge neu wählen" size="small" text @click="resetOrigins" />
+      </div>
+      <template v-if="selected.kind === 'Revolute'">
+        <ExpressionField v-model="selected.angle" label="Winkel" unit="°" :document="document" />
+        <Slider :model-value="jointValue" :min="-180" :max="180" @update:model-value="slide" @slideend="slideEnd" />
+        <ExpressionField v-model="selected.offset" label="Versatz entlang der Achse" unit="mm" :document="document" />
+      </template>
+      <template v-else-if="selected.kind === 'Slider'">
+        <ExpressionField v-model="selected.offset" label="Weg" unit="mm" :document="document" />
+        <Slider :model-value="jointValue" :min="-100" :max="100" @update:model-value="slide" @slideend="slideEnd" />
+        <ExpressionField v-model="selected.angle" label="Drehung um die Achse" unit="°" :document="document" />
+      </template>
+      <template v-else>
+        <ExpressionField v-model="selected.offset" label="Abstand entlang der Achse" unit="mm" :document="document" />
+        <ExpressionField v-model="selected.angle" label="Drehung um die Achse" unit="°" :document="document" />
+      </template>
+      <label class="ribo-switch">
+        <ToggleSwitch :model-value="selected.flip" @update:model-value="selected.flip = $event" />
+        <span>Umkehren (Achsen gleich statt gegeneinander)</span>
+      </label>
+    </template>
+
     <!-- Construction plane -->
     <template v-else-if="isConstructionPlane(selected)">
       <label class="ribo-field">
@@ -507,7 +641,7 @@ function setAxis(value: string) {
 
     <div v-if="selected" class="ribo-actions">
       <Button
-        v-if="isProfileFeature(selected) || isEdgeFeature(selected) || isShell(selected) || isHole(selected)"
+        v-if="isProfileFeature(selected) || isEdgeFeature(selected) || isShell(selected) || isHole(selected) || isJoint(selected)"
         v-tooltip.bottom="'Änderungen sind übernommen – schließt den Schritt (Enter)'"
         label="OK"
         icon="pi pi-check"
@@ -531,6 +665,12 @@ function setAxis(value: string) {
   display: flex;
   flex-wrap: wrap;
   gap: 0.375rem;
+}
+
+.ribo-grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
 }
 
 .ribo-switch {

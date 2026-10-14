@@ -13,6 +13,7 @@ import { ACTIONS, APP, NOTIFIER, PANELS, type Notifier } from 'ribo-contracts'
 
 import AppComponent from './App.vue'
 import { createActionRegistry, createPanelRegistry } from './registries'
+import { createLayout, LAYOUT } from './layout'
 
 let app: App | null = null
 let colorScheme: MediaQueryList | null = null
@@ -29,8 +30,10 @@ export async function activate(context: ModuleContext): Promise<void> {
   app.use(PrimeVue, { theme: { preset: Aura, options: { darkModeSelector: '.dark-theme' } } })
   app.use(ToastService)
   app.directive('tooltip', Tooltip)
+  const layout = createLayout()
   app.provide(PANELS, panels)
   app.provide(ACTIONS, actions)
+  app.provide(LAYOUT, layout)
 
   colorScheme = window.matchMedia('(prefers-color-scheme: dark)')
   colorScheme.addEventListener('change', applyColorScheme)
@@ -48,6 +51,15 @@ export async function activate(context: ModuleContext): Promise<void> {
   context.services.register(PANELS, panels)
   context.services.register(ACTIONS, actions)
   context.services.register(NOTIFIER, notifier)
+
+  actions.register({
+    id: 'view.resetLayout',
+    label: 'Fensteranordnung zurücksetzen',
+    icon: 'pi pi-th-large',
+    group: 'view',
+    order: 900,
+    run: () => layout.reset(),
+  })
 }
 
 export async function deactivate(): Promise<void> {

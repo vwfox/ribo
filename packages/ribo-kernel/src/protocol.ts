@@ -1,10 +1,10 @@
 /** Messages between the kernel service and its worker. */
 
-import type { BodyMesh, BuildPlan, ExportFormat, FeatureProblem } from 'ribo-contracts/geometry'
+import type { BodyMesh, BuildPlan, ExportFormat, FeatureProblem, Matrix } from 'ribo-contracts/geometry'
 
 export type KernelRequest =
   | { id: number; type: 'build'; plan: BuildPlan }
-  | { id: number; type: 'export'; plan: BuildPlan; format: ExportFormat; title?: string }
+  | { id: number; type: 'export'; plan: BuildPlan; format: ExportFormat; title?: string; placements?: Matrix[] }
 
 export type KernelResponse =
   | { id: 0; type: 'ready' }

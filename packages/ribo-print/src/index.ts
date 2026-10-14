@@ -73,7 +73,7 @@ export async function activate(context: ModuleContext): Promise<void> {
   async function exportAs(format: ExportFormat) {
     try {
       const name = document.design.value.name
-      const blob = await kernel.export(document.plan.value, format, name || 'ribo')
+      const blob = await kernel.export(document.plan.value, format, name || 'ribo', document.placements.value)
       const url = URL.createObjectURL(blob)
       const link = window.document.createElement('a')
       link.href = url

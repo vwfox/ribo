@@ -1,8 +1,8 @@
 import { ref, shallowRef } from 'vue'
 import type { EObject } from '@emfts/core'
-import type { DocumentService, Notifier, SketcherService, SketchView, Vec2, ViewportService } from 'ribo-contracts'
+import type { DocumentService, Frame, Notifier, SketcherService, SketchView, Vec2, ViewportService } from 'ribo-contracts'
 import { screenToSketch } from 'ribo-contracts'
-import { worldToFrame } from 'ribo-geometry'
+import { IDENTITY, applyDirection, applyPoint, worldToFrame } from 'ribo-geometry'
 import { ConstraintKind, isSketchCurve, isSketchPoint, sketchOf, type ConstructionPlane, type Dimension, type Sketch, type SketchPoint } from 'ribo-model'
 import { layoutDimension, layoutGlyphs } from './annotations'
 import { SketchEditor, type Snap } from './SketchEditor'
@@ -104,7 +104,7 @@ export class SketcherController implements SketcherService {
     this.active.value = sketch
     this.selection.value = new Set()
     this.document.select(sketch)
-    const frame = this.document.sketchPlan(sketch)?.frame
+    const frame = this.worldFrame(sketch)
     if (frame) this.viewport.enterSketchView(frame)
     this.setTool('select')
   }
@@ -320,28 +320,38 @@ export class SketcherController implements SketcherService {
     }
   }
 
-  private edgeCache: { result: unknown; sketch: Sketch; edges: Vec2[][] } | undefined
+  private edgeCache: { result: unknown; sketch: Sketch; placements: unknown; edges: Vec2[][] } | undefined
+
+  /** The sketch's plane where its component sits in the assembly */
+  private worldFrame(sketch: Sketch): Frame | undefined {
+    const frame = this.document.sketchPlan(sketch)?.frame
+    if (!frame) return undefined
+    const m = this.document.placements.value[this.document.componentIndexOf(sketch)] ?? IDENTITY
+    return { origin: applyPoint(m, frame.origin), x: applyDirection(m, frame.x), y: applyDirection(m, frame.y), normal: applyDirection(m, frame.normal) }
+  }
 
   /** Body edges in sketch coordinates; projecting onto the plane just drops the normal part */
   private bodyEdges(): Vec2[][] {
     const result = this.document.result.value
     const sketch = this.active.value
     if (!result || !sketch) return []
-    if (this.edgeCache?.result === result && this.edgeCache.sketch === sketch) return this.edgeCache.edges
-    const frame = this.document.sketchPlan(sketch)?.frame
+    if (this.edgeCache?.result === result && this.edgeCache.sketch === sketch && this.edgeCache.placements === this.document.placements.value) return this.edgeCache.edges
+    const frame = this.worldFrame(sketch)
     if (!frame) return []
+    const placements = this.document.placements.value
     const edges = result.bodies.flatMap((body) =>
       body.edgeGroups.map(({ start, count }) => {
         const points: Vec2[] = []
+        const placement = placements[body.component] ?? IDENTITY
         for (let i = start; i + 2 < start + count; i += 3) {
-          const p = worldToFrame(frame, [body.edges[i]!, body.edges[i + 1]!, body.edges[i + 2]!])
+          const p = worldToFrame(frame, applyPoint(placement, [body.edges[i]!, body.edges[i + 1]!, body.edges[i + 2]!]))
           const previous = points[points.length - 1]
           if (!previous || Math.hypot(p[0] - previous[0], p[1] - previous[1]) > 1e-9) points.push(p)
         }
         return points
       }),
     )
-    this.edgeCache = { result, sketch, edges }
+    this.edgeCache = { result, sketch, placements, edges }
     return edges
   }
 }

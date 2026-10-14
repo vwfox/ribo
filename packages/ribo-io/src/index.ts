@@ -58,7 +58,7 @@ export async function activate(context: ModuleContext): Promise<void> {
 
   async function exportAs(format: ExportFormat) {
     try {
-      const blob = await kernel.export(document.plan.value, format, document.design.value.name || 'ribo')
+      const blob = await kernel.export(document.plan.value, format, document.design.value.name || 'ribo', document.placements.value)
       download(blob, `${fileStem(document.design.value.name)}.${format}`)
     } catch (error) {
       notifier.error(`Export fehlgeschlagen: ${(error as Error).message}`)

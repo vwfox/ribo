@@ -61,6 +61,13 @@ Der Ablauf orientiert sich an Fusion 360:
     - Drucker-Vorlagen oder eigene Bettgröße, Material, Düse; gespeichert im Browser
 16. **Als 3MF exportieren** (Strg+E) für den Slicer, außerdem STL und **STEP** für andere CAD-Programme.
 
+**Bauteile und Gelenke**
+- **Neues Bauteil** legt ein Bauteil an und macht es aktiv: Neue Skizzen und Features landen dort und wirken nur auf dessen Körper. Im Browser aktiviert der Kreis neben dem Namen ein Bauteil, das Auge blendet es aus.
+- **Gelenk** (J): erst am stehenden, dann am beweglichen Bauteil einen Ursprung anklicken – eine Kreiskante (Mittelpunkt und Achse, ideal für Scharniere) oder eine ebene Fläche (Mitte und Normale). Arten: *Starr* (Ausrichten mit Abstand und Drehung), *Scharnier* (Winkel, mit Schieberegler bewegbar), *Schiebe* (Weg). „Umkehren“ dreht die Ausrichtung um.
+- Bauteile ohne Gelenk liegen an ihrer eigenen Position und Drehung; *Fixiert* hält ein Bauteil fest. Exportiert wird in der zusammengebauten Lage.
+
+**Fenster**: Browser, Zeitleiste, Eigenschaften und 3D-Druck lassen sich am Titel in einen anderen Bereich (links, rechts, unten) ziehen, mit ⧉ herauslösen und als Fenster frei verschieben; am Rand rasten sie wieder ein. „Fensteranordnung zurücksetzen“ stellt den Anfang wieder her.
+
 Navigation in 3D: links drehen, rechts oder Mitte verschieben, das Rad zoomt zum Mauszeiger. In der Skizze verschieben die rechte und die mittlere Taste.
 
 Gespeichert wird als emfts-JSON (`.ribo.json`, Strg+S). Der letzte Stand liegt außerdem automatisch im Browser.
@@ -73,13 +80,13 @@ Der Aufbau folgt gene. Eine dünne Vite-App (`src/main.ts`) registriert die Shar
 |---|---|
 | `ribo-contracts` | Service-IDs und Typen, kein Verhalten. `geometry.ts` ist worker-tauglich. |
 | `ribo-model` | `model/ribo.ecore` → generierter Code (`src/generated`, **nicht editieren**) + Typ-Guards |
-| `ribo-app` | Vue-Shell, Toolbar, Panel- und Action-Registry, Tastenkürzel, Toasts |
+| `ribo-app` | Vue-Shell, Toolbar, andockbare und lösbare Panels, Action-Registry, Tastenkürzel, Toasts |
 | `ribo-kernel` | replicad/OpenCascade im Web Worker: Plan → Körper → Mesh, STL/STEP |
 | `ribo-geometry` | 2D-Geometrie: Schnittpunkte, nächster Punkt, Profilerkennung (Regionen mit Löchern) |
-| `ribo-document` | aktuelles Design, Ausdrücke, Skizzen-Solver (PlaneGCS), Undo/Redo, Plan-Compiler, Rebuild |
+| `ribo-document` | aktuelles Design, Ausdrücke, Skizzen-Solver (PlaneGCS), Baugruppen-Kinematik, Undo/Redo, Plan-Compiler, Rebuild |
 | `ribo-viewport` | three.js-Ansicht (Z oben, 220-mm-Druckbett), 2D-Skizzenansicht, Ebenen- und Profilwahl |
 | `ribo-sketcher` | Skizzenmodus: Werkzeuge, Abhängigkeiten, Bemaßungen, SVG-Overlay, Skizzenpalette |
-| `ribo-timeline` | Browser: Parameter und Zeitleiste mit Rollback, Extrudieren/Drehen, Undo/Redo |
+| `ribo-timeline` | Objektbrowser (Bauteile, Skizzen, Features, Körper, Gelenke), Zeitleiste mit Marker, Erstell-Aktionen, Undo/Redo |
 | `ribo-properties` | Eigenschaften des gewählten Objekts |
 | `ribo-print` | Druck-Checks (Bett, Überhänge, Wandstärke per BVH-Raycasting), Materialabschätzung, Export |
 | `ribo-io` | Neu, Öffnen, Speichern, Autosave, Export (3MF, STL, STEP) |

@@ -12,7 +12,9 @@ import {
   RiboFactory,
   FeatureOperation,
   isBodyModifier,
+  isComponent,
   isConstructionPlane,
+  isJoint,
   isFeature,
   isHole,
   isParameter,
@@ -24,11 +26,14 @@ import {
   isSketchPoint,
   pointsOf,
   sketchOf,
+  type Component,
   type ConstructionPlane,
   type Design,
   type EdgeFeature,
   type Feature,
   type Hole,
+  type Joint,
+  type JointOrigin,
   type Parameter,
   type ProfileFeature,
   type Sketch,
@@ -45,6 +50,7 @@ import type {
   FeatureProblem,
   Frame,
   KernelService,
+  Matrix,
   PlanePick,
   SketchPlanFeature,
   SolveOutcome,
@@ -53,8 +59,9 @@ import type {
 } from 'ribo-contracts'
 import { evaluateExpression } from './expression'
 import { History } from './History'
-import { compilePlan, evaluateParameters, scopeOf, sketchCurves, sketchFrame, sketchRegions } from './plan'
-import { originFrame, regionAt } from 'ribo-geometry'
+import { buildComponent, compilePlan, componentIndex, evaluateParameters, scopeOf, sketchCurves, sketchFrame, sketchRegions } from './plan'
+import { solveAssembly } from './kinematics'
+import { IDENTITY, originFrame, regionAt } from 'ribo-geometry'
 import type { SketchSolver } from './solver'
 
 const BUILD_DELAY_MS = 120
@@ -96,6 +103,8 @@ export class DesignDocument implements DocumentService {
   readonly history = new History()
   readonly solverReady = ref(false)
   readonly inputResult = shallowRef<BuildResult | undefined>()
+  /** Placement of each component (0: the design itself) */
+  readonly placements = shallowRef<Matrix[]>([IDENTITY])
 
   private readonly factory = RiboFactory.eINSTANCE
   private readonly adapter: EContentAdapter
@@ -105,6 +114,7 @@ export class DesignDocument implements DocumentService {
   private updateQueued = false
   private compileProblems: FeatureProblem[] = []
   private solveProblems: FeatureProblem[] = []
+  private assemblyProblems: FeatureProblem[] = []
   private buildTimer: ReturnType<typeof setTimeout> | undefined
   private buildRunning = false
   private buildAgain = false
@@ -269,7 +279,7 @@ export class DesignDocument implements DocumentService {
       frame = originFrame(sketch.plane ?? 'XY')
     }
     const curves = sketchCurves(sketch)
-    return { kind: 'sketch', index, frame, curves, regions: sketchRegions(curves) }
+    return { kind: 'sketch', index, frame, curves, regions: sketchRegions(curves), component: componentIndex(this.design.value, sketch.component) }
   }
 
   toggleProfile(feature: ProfileFeature, point: Vec2): void {
@@ -307,6 +317,66 @@ export class DesignDocument implements DocumentService {
   }
 
   // --------------------------------------------------------- modifications
+
+  // ------------------------------------------------------------ assembly
+
+  addComponent(): Component {
+    const design = this.design.value
+    const component = this.factory.createComponent()
+    component.name = this.uniqueName(
+      'Bauteil ',
+      design.components.toArray().map((c) => c.name),
+    )
+    this.history.record('Neues Bauteil', () => {
+      design.components.add(component)
+      design.activeComponent = component
+    })
+    this.select(component)
+    return component
+  }
+
+  activate(component: Component | undefined): void {
+    const design = this.design.value
+    if (design.activeComponent === component) return
+    this.history.record('Bauteil aktivieren', () => {
+      design.activeComponent = component as Component
+    })
+  }
+
+  componentIndexOf(object: Component | Feature | undefined): number {
+    if (!object) return 0
+    if (isComponent(object)) return componentIndex(this.design.value, object)
+    return buildComponent(this.design.value, object)
+  }
+
+  componentAt(index: number): Component | undefined {
+    return index <= 0 ? undefined : this.design.value.components.get(index - 1)
+  }
+
+  addJoint(): Joint {
+    const joint = this.factory.createJoint()
+    joint.name = this.nextFeatureName('Gelenk')
+    // Joints belong to the assembly, not to a component
+    this.history.record('Gelenk', () => {
+      const active = this.design.value.activeComponent
+      this.design.value.activeComponent = undefined as never
+      this.insertFeature(joint)
+      this.design.value.activeComponent = active as Component
+    })
+    this.select(joint)
+    return joint
+  }
+
+  setJointOrigin(joint: Joint, which: 'first' | 'second', component: number, origin: Vec3, z: Vec3, x: Vec3): void {
+    const value: JointOrigin = this.factory.createJointOrigin()
+    value.component = this.componentAt(component) as Component
+    ;[value.originX, value.originY, value.originZ] = origin
+    ;[value.zX, value.zY, value.zZ] = z
+    ;[value.xX, value.xY, value.xZ] = x
+    this.history.record('Gelenkursprung', () => {
+      joint[which] = value
+    })
+  }
 
   addConstructionPlane(pick: PlanePick): ConstructionPlane {
     const plane = this.factory.createConstructionPlane()
@@ -439,6 +509,8 @@ export class DesignDocument implements DocumentService {
   /** New features go to the rollback marker when one is set, and the marker moves past them */
   private insertFeature(feature: Feature): void {
     const design = this.design.value
+    // New features build in the active component
+    if (!feature.component && design.activeComponent) feature.component = design.activeComponent
     const rollback = design.rollback ?? -1
     if (rollback >= 0) {
       design.features.addAt(rollback, feature)
@@ -491,6 +563,16 @@ export class DesignDocument implements DocumentService {
     }
     if (isParameter(object)) {
       design.parameters.remove(object)
+      return
+    }
+    if (isComponent(object)) {
+      // A component goes with its features and the joints holding it
+      for (const feature of design.features.toArray()) {
+        const holds = isJoint(feature) && (feature.first?.component === object || feature.second?.component === object)
+        if (feature.component === object || holds) this.removeNow(feature)
+      }
+      if (design.activeComponent === object) design.activeComponent = undefined as never
+      design.components.remove(object)
       return
     }
 
@@ -587,6 +669,17 @@ export class DesignDocument implements DocumentService {
 
     const compiled = compilePlan(design)
     this.plan.value = compiled.plan
+    const rollback = design.rollback ?? -1
+    const end = rollback >= 0 ? rollback : design.features.size()
+    const assembly = solveAssembly(design, (label, source) => {
+      try {
+        return this.evaluate(source ?? '0')
+      } catch (error) {
+        throw new Error(`${label}: ${(error as Error).message}`)
+      }
+    }, end)
+    this.placements.value = assembly.placements
+    this.assemblyProblems = assembly.problems
     this.compileProblems = compiled.problems
     this.problems.value = this.mergeProblems(this.result.value?.problems ?? [])
     // The solver's writes were muted; views keyed on the revision must still see them
@@ -625,6 +718,6 @@ export class DesignDocument implements DocumentService {
   }
 
   private mergeProblems(buildProblems: FeatureProblem[]): FeatureProblem[] {
-    return [...this.solveProblems, ...this.compileProblems, ...buildProblems].sort((a, b) => a.index - b.index)
+    return [...this.solveProblems, ...this.compileProblems, ...this.assemblyProblems, ...buildProblems].sort((a, b) => a.index - b.index)
   }
 }

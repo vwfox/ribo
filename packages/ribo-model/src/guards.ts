@@ -7,6 +7,8 @@ import type { EClass, EObject } from '@emfts/core'
 import { RiboPackage } from './generated/ribo/RiboPackage.js'
 import type {
   Chamfer,
+  Component,
+  Joint,
   ConstructionPlane,
   Dimension,
   EdgeFeature,
@@ -49,6 +51,8 @@ export const isFillet = (o: Maybe): o is Fillet => isKindOf(o, L().FILLET)
 export const isChamfer = (o: Maybe): o is Chamfer => isKindOf(o, L().CHAMFER)
 export const isShell = (o: Maybe): o is Shell => isKindOf(o, L().SHELL)
 export const isHole = (o: Maybe): o is Hole => isKindOf(o, L().HOLE)
+export const isComponent = (o: Maybe): o is Component => isKindOf(o, L().COMPONENT)
+export const isJoint = (o: Maybe): o is Joint => isKindOf(o, L().JOINT)
 export const isConstructionPlane = (o: Maybe): o is ConstructionPlane => isKindOf(o, L().CONSTRUCTION_PLANE)
 /** Features that modify existing bodies by picked edges or faces */
 export const isBodyModifier = (o: Maybe): o is EdgeFeature | Shell => isEdgeFeature(o) || isShell(o)

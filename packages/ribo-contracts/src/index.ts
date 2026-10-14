@@ -10,11 +10,13 @@ import { serviceId } from '@eclipse-daanse/tsm'
 import type { App, Component, ComputedRef, Ref, ShallowRef } from 'vue'
 import type { EObject } from '@emfts/core'
 import type {
+  Component as ModelComponent,
   ConstructionPlane,
   Design,
   EdgeFeature,
   Feature,
   Hole,
+  Joint,
   Shell,
   Parameter,
   ProfileFeature,
@@ -26,7 +28,7 @@ import type {
 } from 'ribo-model'
 
 export * from './geometry'
-import type { BuildPlan, BuildResult, ExportFormat, FeatureProblem, Frame, PlanFeature, PlanPlane, Vec2, Vec3 } from './geometry'
+import type { BuildPlan, BuildResult, ExportFormat, FeatureProblem, Frame, Matrix, PlannedFeature, PlanPlane, Vec2, Vec3 } from './geometry'
 
 // ---------------------------------------------------------------------------
 // Kernel
@@ -36,8 +38,11 @@ export interface KernelService {
   /** Resolves once OpenCascade is loaded */
   readonly ready: Promise<void>
   build(plan: BuildPlan): Promise<BuildResult>
-  /** `title` names the part inside formats that carry names (3MF) */
-  export(plan: BuildPlan, format: ExportFormat, title?: string): Promise<Blob>
+  /**
+   * `title` names the part inside formats that carry names (3MF); with
+   * `placements` (per component index) bodies are exported where the assembly puts them.
+   */
+  export(plan: BuildPlan, format: ExportFormat, title?: string, placements?: Matrix[]): Promise<Blob>
 }
 
 export const KERNEL = serviceId<KernelService>('ribo.kernel')
@@ -70,7 +75,7 @@ export interface HistoryService {
   record<T>(label: string, change: () => T): T
 }
 
-export type SketchPlanFeature = Extract<PlanFeature, { kind: 'sketch' }>
+export type SketchPlanFeature = Extract<PlannedFeature, { kind: 'sketch' }>
 
 export interface DocumentService {
   /** The design being edited; re-triggered whenever anything in it changes */
@@ -141,6 +146,19 @@ export interface DocumentService {
    * its edges and faces are picked on. Undefined when no such feature is selected.
    */
   readonly inputResult: ShallowRef<BuildResult | undefined>
+
+  /** Placement of each component, by component index (0: the design itself) */
+  readonly placements: ShallowRef<Matrix[]>
+  /** A new component, made the active one */
+  addComponent(): ModelComponent
+  /** New features go into the active component; undefined is the design itself */
+  activate(component: ModelComponent | undefined): void
+  /** Component index of a component, or of the component a feature builds in */
+  componentIndexOf(object: ModelComponent | Feature | undefined): number
+  componentAt(index: number): ModelComponent | undefined
+  addJoint(): Joint
+  /** Sets one of a joint's origins: a point with z and x axes in the coordinates of that component */
+  setJointOrigin(joint: Joint, which: 'first' | 'second', component: number, origin: Vec3, z: Vec3, x: Vec3): void
 }
 
 export const DOCUMENT = serviceId<DocumentService>('ribo.document')
@@ -227,7 +245,8 @@ export const SKETCHER = serviceId<SketcherService>('ribo.sketcher')
 // Workbench: panels and actions
 // ---------------------------------------------------------------------------
 
-export type PanelLocation = 'left' | 'center' | 'right'
+/** Where a panel docks; 'center' is the viewport and does not move */
+export type PanelLocation = 'left' | 'center' | 'right' | 'bottom'
 
 export interface PanelContribution {
   id: string

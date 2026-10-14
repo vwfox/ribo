@@ -1,4 +1,4 @@
-import type { BuildPlan, BuildResult, ExportFormat, KernelService } from 'ribo-contracts'
+import type { BuildPlan, BuildResult, ExportFormat, KernelService, Matrix } from 'ribo-contracts'
 import type { KernelRequest, KernelResponse } from './protocol'
 
 /** Omit that keeps the union apart, so each request keeps its own fields */
@@ -39,8 +39,8 @@ export class WorkerKernel implements KernelService {
     return { bodies: response.bodies, problems: response.problems, duration: response.duration }
   }
 
-  async export(plan: BuildPlan, format: ExportFormat, title?: string): Promise<Blob> {
-    const response = await this.request({ type: 'export', plan, format, title })
+  async export(plan: BuildPlan, format: ExportFormat, title?: string, placements?: Matrix[]): Promise<Blob> {
+    const response = await this.request({ type: 'export', plan, format, title, placements })
     if (response.type !== 'exported') throw new Error(`Unexpected kernel response '${response.type}'`)
     return response.blob
   }

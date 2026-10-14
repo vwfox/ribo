@@ -21,9 +21,9 @@ import { RiboPackage } from './RiboPackage.js';
  */
 export abstract class ProfileFeatureImpl extends FeatureImpl implements ProfileFeature {
   // Feature ID Constants (eLiterals)
-  static readonly SKETCH: number = 2;
-  static readonly PROFILES: number = 3;
-  static readonly OPERATION: number = 4;
+  static readonly SKETCH: number = 3;
+  static readonly PROFILES: number = 4;
+  static readonly OPERATION: number = 5;
 
   // Private fields
   private _sketch?: Sketch;

@@ -18,8 +18,8 @@ import { RiboPackage } from './RiboPackage.js';
  */
 export class ExtrudeImpl extends ProfileFeatureImpl implements Extrude {
   // Feature ID Constants (eLiterals)
-  static readonly DISTANCE: number = 5;
-  static readonly DIRECTION: number = 6;
+  static readonly DISTANCE: number = 6;
+  static readonly DIRECTION: number = 7;
 
   // Private fields
   private _distance: string = "10";

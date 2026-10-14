@@ -23,12 +23,12 @@ import { RiboPackage } from './RiboPackage.js';
  */
 export class SketchImpl extends FeatureImpl implements Sketch {
   // Feature ID Constants (eLiterals)
-  static readonly PLANE: number = 2;
-  static readonly OFFSET: number = 3;
-  static readonly REFERENCE: number = 4;
-  static readonly POINTS: number = 5;
-  static readonly CURVES: number = 6;
-  static readonly CONSTRAINTS: number = 7;
+  static readonly PLANE: number = 3;
+  static readonly OFFSET: number = 4;
+  static readonly REFERENCE: number = 5;
+  static readonly POINTS: number = 6;
+  static readonly CURVES: number = 7;
+  static readonly CONSTRAINTS: number = 8;
 
   // Private fields
   private _plane: SketchPlane = SketchPlane.XY;

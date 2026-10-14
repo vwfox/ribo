@@ -34,6 +34,9 @@ export type { EdgeSelection } from './EdgeSelection.js';
 export type { FaceSelection } from './FaceSelection.js';
 export type { Hole } from './Hole.js';
 export type { ConstructionPlane } from './ConstructionPlane.js';
+export type { Component } from './Component.js';
+export type { Joint } from './Joint.js';
+export type { JointOrigin } from './JointOrigin.js';
 
 // Implementations (including abstract classes, as they're extended by subclasses)
 export { DesignImpl } from './DesignImpl.js';
@@ -60,6 +63,9 @@ export { EdgeSelectionImpl } from './EdgeSelectionImpl.js';
 export { FaceSelectionImpl } from './FaceSelectionImpl.js';
 export { HoleImpl } from './HoleImpl.js';
 export { ConstructionPlaneImpl } from './ConstructionPlaneImpl.js';
+export { ComponentImpl } from './ComponentImpl.js';
+export { JointImpl } from './JointImpl.js';
+export { JointOriginImpl } from './JointOriginImpl.js';
 
 // Enums
 export { SketchPlane, getSketchPlane, getSketchPlaneByLiteral } from './SketchPlane.js';
@@ -70,3 +76,4 @@ export { ExtentDirection, getExtentDirection, getExtentDirectionByLiteral } from
 export { SketchAxis, getSketchAxis, getSketchAxisByLiteral } from './SketchAxis.js';
 export { HoleType, getHoleType, getHoleTypeByLiteral } from './HoleType.js';
 export { PlaneBase, getPlaneBase, getPlaneBaseByLiteral } from './PlaneBase.js';
+export { JointKind, getJointKind, getJointKindByLiteral } from './JointKind.js';

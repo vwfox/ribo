@@ -38,6 +38,8 @@ export class RiboPackage extends BasicEPackage {
     DESIGN__PARAMETERS: null as unknown as EAttribute | EReference,
     DESIGN__FEATURES: null as unknown as EAttribute | EReference,
     DESIGN__ROLLBACK: null as unknown as EAttribute | EReference,
+    DESIGN__COMPONENTS: null as unknown as EAttribute | EReference,
+    DESIGN__ACTIVE_COMPONENT: null as unknown as EAttribute | EReference,
     PARAMETER: null as unknown as EClass,
     PARAMETER__NAME: null as unknown as EAttribute | EReference,
     PARAMETER__EXPRESSION: null as unknown as EAttribute | EReference,
@@ -45,6 +47,7 @@ export class RiboPackage extends BasicEPackage {
     FEATURE: null as unknown as EClass,
     FEATURE__NAME: null as unknown as EAttribute | EReference,
     FEATURE__SUPPRESSED: null as unknown as EAttribute | EReference,
+    FEATURE__COMPONENT: null as unknown as EAttribute | EReference,
     SKETCH: null as unknown as EClass,
     SKETCH__PLANE: null as unknown as EAttribute | EReference,
     SKETCH__OFFSET: null as unknown as EAttribute | EReference,
@@ -133,6 +136,34 @@ export class RiboPackage extends BasicEPackage {
     CONSTRUCTION_PLANE__OFFSET: null as unknown as EAttribute | EReference,
     CONSTRUCTION_PLANE__ANGLE: null as unknown as EAttribute | EReference,
     CONSTRUCTION_PLANE__TILT_AXIS: null as unknown as EAttribute | EReference,
+    COMPONENT: null as unknown as EClass,
+    COMPONENT__NAME: null as unknown as EAttribute | EReference,
+    COMPONENT__GROUNDED: null as unknown as EAttribute | EReference,
+    COMPONENT__VISIBLE: null as unknown as EAttribute | EReference,
+    COMPONENT__POSITION_X: null as unknown as EAttribute | EReference,
+    COMPONENT__POSITION_Y: null as unknown as EAttribute | EReference,
+    COMPONENT__POSITION_Z: null as unknown as EAttribute | EReference,
+    COMPONENT__ROTATION_X: null as unknown as EAttribute | EReference,
+    COMPONENT__ROTATION_Y: null as unknown as EAttribute | EReference,
+    COMPONENT__ROTATION_Z: null as unknown as EAttribute | EReference,
+    JOINT: null as unknown as EClass,
+    JOINT__KIND: null as unknown as EAttribute | EReference,
+    JOINT__FIRST: null as unknown as EAttribute | EReference,
+    JOINT__SECOND: null as unknown as EAttribute | EReference,
+    JOINT__OFFSET: null as unknown as EAttribute | EReference,
+    JOINT__ANGLE: null as unknown as EAttribute | EReference,
+    JOINT__FLIP: null as unknown as EAttribute | EReference,
+    JOINT_ORIGIN: null as unknown as EClass,
+    JOINT_ORIGIN__COMPONENT: null as unknown as EAttribute | EReference,
+    JOINT_ORIGIN__ORIGIN_X: null as unknown as EAttribute | EReference,
+    JOINT_ORIGIN__ORIGIN_Y: null as unknown as EAttribute | EReference,
+    JOINT_ORIGIN__ORIGIN_Z: null as unknown as EAttribute | EReference,
+    JOINT_ORIGIN__Z_X: null as unknown as EAttribute | EReference,
+    JOINT_ORIGIN__Z_Y: null as unknown as EAttribute | EReference,
+    JOINT_ORIGIN__Z_Z: null as unknown as EAttribute | EReference,
+    JOINT_ORIGIN__X_X: null as unknown as EAttribute | EReference,
+    JOINT_ORIGIN__X_Y: null as unknown as EAttribute | EReference,
+    JOINT_ORIGIN__X_Z: null as unknown as EAttribute | EReference,
   };
 
   private constructor() {
@@ -196,6 +227,24 @@ export class RiboPackage extends BasicEPackage {
     designClass.getEStructuralFeatures().push(design_rollback);
     RiboPackage.Literals.DESIGN__ROLLBACK = design_rollback;
 
+    // Create components feature
+    const design_components = new BasicEReference();
+    design_components.setContainment(true);
+    design_components.setName('components');
+    design_components.setLowerBound(0);
+    design_components.setUpperBound(-1);
+    designClass.getEStructuralFeatures().push(design_components);
+    RiboPackage.Literals.DESIGN__COMPONENTS = design_components;
+
+    // Create activeComponent feature
+    const design_activeComponent = new BasicEReference();
+    design_activeComponent.setContainment(false);
+    design_activeComponent.setName('activeComponent');
+    design_activeComponent.setLowerBound(0);
+    design_activeComponent.setUpperBound(1);
+    designClass.getEStructuralFeatures().push(design_activeComponent);
+    RiboPackage.Literals.DESIGN__ACTIVE_COMPONENT = design_activeComponent;
+
     // Create Parameter class
     const parameterClass = new BasicEClass();
     parameterClass.setName('Parameter');
@@ -253,6 +302,15 @@ export class RiboPackage extends BasicEPackage {
     feature_suppressed.setUpperBound(1);
     featureClass.getEStructuralFeatures().push(feature_suppressed);
     RiboPackage.Literals.FEATURE__SUPPRESSED = feature_suppressed;
+
+    // Create component feature
+    const feature_component = new BasicEReference();
+    feature_component.setContainment(false);
+    feature_component.setName('component');
+    feature_component.setLowerBound(0);
+    feature_component.setUpperBound(1);
+    featureClass.getEStructuralFeatures().push(feature_component);
+    RiboPackage.Literals.FEATURE__COMPONENT = feature_component;
 
     // Create Sketch class
     const sketchClass = new BasicEClass();
@@ -998,6 +1056,236 @@ export class RiboPackage extends BasicEPackage {
     constructionPlaneClass.getEStructuralFeatures().push(constructionPlane_tiltAxis);
     RiboPackage.Literals.CONSTRUCTION_PLANE__TILT_AXIS = constructionPlane_tiltAxis;
 
+    // Create Component class
+    const componentClass = new BasicEClass();
+    componentClass.setName('Component');
+    componentClass.setAbstract(false);
+    componentClass.setInterface(false);
+    this.getEClassifiers().push(componentClass);
+    componentClass.setEPackage(this);
+    RiboPackage.Literals.COMPONENT = componentClass;
+
+    // Create name feature
+    const component_name = new BasicEAttribute();
+    component_name.setName('name');
+    component_name.setLowerBound(0);
+    component_name.setUpperBound(1);
+    componentClass.getEStructuralFeatures().push(component_name);
+    RiboPackage.Literals.COMPONENT__NAME = component_name;
+
+    // Create grounded feature
+    const component_grounded = new BasicEAttribute();
+    component_grounded.setName('grounded');
+    component_grounded.setLowerBound(1);
+    component_grounded.setUpperBound(1);
+    componentClass.getEStructuralFeatures().push(component_grounded);
+    RiboPackage.Literals.COMPONENT__GROUNDED = component_grounded;
+
+    // Create visible feature
+    const component_visible = new BasicEAttribute();
+    component_visible.setName('visible');
+    component_visible.setLowerBound(1);
+    component_visible.setUpperBound(1);
+    componentClass.getEStructuralFeatures().push(component_visible);
+    RiboPackage.Literals.COMPONENT__VISIBLE = component_visible;
+
+    // Create positionX feature
+    const component_positionX = new BasicEAttribute();
+    component_positionX.setName('positionX');
+    component_positionX.setLowerBound(1);
+    component_positionX.setUpperBound(1);
+    componentClass.getEStructuralFeatures().push(component_positionX);
+    RiboPackage.Literals.COMPONENT__POSITION_X = component_positionX;
+
+    // Create positionY feature
+    const component_positionY = new BasicEAttribute();
+    component_positionY.setName('positionY');
+    component_positionY.setLowerBound(1);
+    component_positionY.setUpperBound(1);
+    componentClass.getEStructuralFeatures().push(component_positionY);
+    RiboPackage.Literals.COMPONENT__POSITION_Y = component_positionY;
+
+    // Create positionZ feature
+    const component_positionZ = new BasicEAttribute();
+    component_positionZ.setName('positionZ');
+    component_positionZ.setLowerBound(1);
+    component_positionZ.setUpperBound(1);
+    componentClass.getEStructuralFeatures().push(component_positionZ);
+    RiboPackage.Literals.COMPONENT__POSITION_Z = component_positionZ;
+
+    // Create rotationX feature
+    const component_rotationX = new BasicEAttribute();
+    component_rotationX.setName('rotationX');
+    component_rotationX.setLowerBound(1);
+    component_rotationX.setUpperBound(1);
+    componentClass.getEStructuralFeatures().push(component_rotationX);
+    RiboPackage.Literals.COMPONENT__ROTATION_X = component_rotationX;
+
+    // Create rotationY feature
+    const component_rotationY = new BasicEAttribute();
+    component_rotationY.setName('rotationY');
+    component_rotationY.setLowerBound(1);
+    component_rotationY.setUpperBound(1);
+    componentClass.getEStructuralFeatures().push(component_rotationY);
+    RiboPackage.Literals.COMPONENT__ROTATION_Y = component_rotationY;
+
+    // Create rotationZ feature
+    const component_rotationZ = new BasicEAttribute();
+    component_rotationZ.setName('rotationZ');
+    component_rotationZ.setLowerBound(1);
+    component_rotationZ.setUpperBound(1);
+    componentClass.getEStructuralFeatures().push(component_rotationZ);
+    RiboPackage.Literals.COMPONENT__ROTATION_Z = component_rotationZ;
+
+    // Create Joint class
+    const jointClass = new BasicEClass();
+    jointClass.setName('Joint');
+    jointClass.setAbstract(false);
+    jointClass.setInterface(false);
+    this.getEClassifiers().push(jointClass);
+    jointClass.setEPackage(this);
+    RiboPackage.Literals.JOINT = jointClass;
+
+    // Create kind feature
+    const joint_kind = new BasicEAttribute();
+    joint_kind.setName('kind');
+    joint_kind.setLowerBound(1);
+    joint_kind.setUpperBound(1);
+    jointClass.getEStructuralFeatures().push(joint_kind);
+    RiboPackage.Literals.JOINT__KIND = joint_kind;
+
+    // Create first feature
+    const joint_first = new BasicEReference();
+    joint_first.setContainment(true);
+    joint_first.setName('first');
+    joint_first.setLowerBound(0);
+    joint_first.setUpperBound(1);
+    jointClass.getEStructuralFeatures().push(joint_first);
+    RiboPackage.Literals.JOINT__FIRST = joint_first;
+
+    // Create second feature
+    const joint_second = new BasicEReference();
+    joint_second.setContainment(true);
+    joint_second.setName('second');
+    joint_second.setLowerBound(0);
+    joint_second.setUpperBound(1);
+    jointClass.getEStructuralFeatures().push(joint_second);
+    RiboPackage.Literals.JOINT__SECOND = joint_second;
+
+    // Create offset feature
+    const joint_offset = new BasicEAttribute();
+    joint_offset.setName('offset');
+    joint_offset.setLowerBound(1);
+    joint_offset.setUpperBound(1);
+    jointClass.getEStructuralFeatures().push(joint_offset);
+    RiboPackage.Literals.JOINT__OFFSET = joint_offset;
+
+    // Create angle feature
+    const joint_angle = new BasicEAttribute();
+    joint_angle.setName('angle');
+    joint_angle.setLowerBound(1);
+    joint_angle.setUpperBound(1);
+    jointClass.getEStructuralFeatures().push(joint_angle);
+    RiboPackage.Literals.JOINT__ANGLE = joint_angle;
+
+    // Create flip feature
+    const joint_flip = new BasicEAttribute();
+    joint_flip.setName('flip');
+    joint_flip.setLowerBound(1);
+    joint_flip.setUpperBound(1);
+    jointClass.getEStructuralFeatures().push(joint_flip);
+    RiboPackage.Literals.JOINT__FLIP = joint_flip;
+
+    // Create JointOrigin class
+    const jointOriginClass = new BasicEClass();
+    jointOriginClass.setName('JointOrigin');
+    jointOriginClass.setAbstract(false);
+    jointOriginClass.setInterface(false);
+    this.getEClassifiers().push(jointOriginClass);
+    jointOriginClass.setEPackage(this);
+    RiboPackage.Literals.JOINT_ORIGIN = jointOriginClass;
+
+    // Create component feature
+    const jointOrigin_component = new BasicEReference();
+    jointOrigin_component.setContainment(false);
+    jointOrigin_component.setName('component');
+    jointOrigin_component.setLowerBound(0);
+    jointOrigin_component.setUpperBound(1);
+    jointOriginClass.getEStructuralFeatures().push(jointOrigin_component);
+    RiboPackage.Literals.JOINT_ORIGIN__COMPONENT = jointOrigin_component;
+
+    // Create originX feature
+    const jointOrigin_originX = new BasicEAttribute();
+    jointOrigin_originX.setName('originX');
+    jointOrigin_originX.setLowerBound(1);
+    jointOrigin_originX.setUpperBound(1);
+    jointOriginClass.getEStructuralFeatures().push(jointOrigin_originX);
+    RiboPackage.Literals.JOINT_ORIGIN__ORIGIN_X = jointOrigin_originX;
+
+    // Create originY feature
+    const jointOrigin_originY = new BasicEAttribute();
+    jointOrigin_originY.setName('originY');
+    jointOrigin_originY.setLowerBound(1);
+    jointOrigin_originY.setUpperBound(1);
+    jointOriginClass.getEStructuralFeatures().push(jointOrigin_originY);
+    RiboPackage.Literals.JOINT_ORIGIN__ORIGIN_Y = jointOrigin_originY;
+
+    // Create originZ feature
+    const jointOrigin_originZ = new BasicEAttribute();
+    jointOrigin_originZ.setName('originZ');
+    jointOrigin_originZ.setLowerBound(1);
+    jointOrigin_originZ.setUpperBound(1);
+    jointOriginClass.getEStructuralFeatures().push(jointOrigin_originZ);
+    RiboPackage.Literals.JOINT_ORIGIN__ORIGIN_Z = jointOrigin_originZ;
+
+    // Create zX feature
+    const jointOrigin_zX = new BasicEAttribute();
+    jointOrigin_zX.setName('zX');
+    jointOrigin_zX.setLowerBound(1);
+    jointOrigin_zX.setUpperBound(1);
+    jointOriginClass.getEStructuralFeatures().push(jointOrigin_zX);
+    RiboPackage.Literals.JOINT_ORIGIN__Z_X = jointOrigin_zX;
+
+    // Create zY feature
+    const jointOrigin_zY = new BasicEAttribute();
+    jointOrigin_zY.setName('zY');
+    jointOrigin_zY.setLowerBound(1);
+    jointOrigin_zY.setUpperBound(1);
+    jointOriginClass.getEStructuralFeatures().push(jointOrigin_zY);
+    RiboPackage.Literals.JOINT_ORIGIN__Z_Y = jointOrigin_zY;
+
+    // Create zZ feature
+    const jointOrigin_zZ = new BasicEAttribute();
+    jointOrigin_zZ.setName('zZ');
+    jointOrigin_zZ.setLowerBound(1);
+    jointOrigin_zZ.setUpperBound(1);
+    jointOriginClass.getEStructuralFeatures().push(jointOrigin_zZ);
+    RiboPackage.Literals.JOINT_ORIGIN__Z_Z = jointOrigin_zZ;
+
+    // Create xX feature
+    const jointOrigin_xX = new BasicEAttribute();
+    jointOrigin_xX.setName('xX');
+    jointOrigin_xX.setLowerBound(1);
+    jointOrigin_xX.setUpperBound(1);
+    jointOriginClass.getEStructuralFeatures().push(jointOrigin_xX);
+    RiboPackage.Literals.JOINT_ORIGIN__X_X = jointOrigin_xX;
+
+    // Create xY feature
+    const jointOrigin_xY = new BasicEAttribute();
+    jointOrigin_xY.setName('xY');
+    jointOrigin_xY.setLowerBound(1);
+    jointOrigin_xY.setUpperBound(1);
+    jointOriginClass.getEStructuralFeatures().push(jointOrigin_xY);
+    RiboPackage.Literals.JOINT_ORIGIN__X_Y = jointOrigin_xY;
+
+    // Create xZ feature
+    const jointOrigin_xZ = new BasicEAttribute();
+    jointOrigin_xZ.setName('xZ');
+    jointOrigin_xZ.setLowerBound(1);
+    jointOrigin_xZ.setUpperBound(1);
+    jointOriginClass.getEStructuralFeatures().push(jointOrigin_xZ);
+    RiboPackage.Literals.JOINT_ORIGIN__X_Z = jointOrigin_xZ;
+
 
     // ============================================
     // Set ESuperTypes (must be done after all classes are created)
@@ -1017,6 +1305,7 @@ export class RiboPackage extends BasicEPackage {
     (RiboPackage.Literals.SHELL as BasicEClass).getESuperTypes().push(RiboPackage.Literals.FEATURE);
     (RiboPackage.Literals.HOLE as BasicEClass).getESuperTypes().push(RiboPackage.Literals.FEATURE);
     (RiboPackage.Literals.CONSTRUCTION_PLANE as BasicEClass).getESuperTypes().push(RiboPackage.Literals.FEATURE);
+    (RiboPackage.Literals.JOINT as BasicEClass).getESuperTypes().push(RiboPackage.Literals.FEATURE);
 
     // ============================================
     // Set ETypes for all features (must be done after all classes are created).
@@ -1027,11 +1316,14 @@ export class RiboPackage extends BasicEPackage {
     (RiboPackage.Literals.DESIGN__PARAMETERS as BasicEReference).setEType(RiboPackage.Literals.PARAMETER);
     (RiboPackage.Literals.DESIGN__FEATURES as BasicEReference).setEType(RiboPackage.Literals.FEATURE);
     (RiboPackage.Literals.DESIGN__ROLLBACK as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EInt')!);
+    (RiboPackage.Literals.DESIGN__COMPONENTS as BasicEReference).setEType(RiboPackage.Literals.COMPONENT);
+    (RiboPackage.Literals.DESIGN__ACTIVE_COMPONENT as BasicEReference).setEType(RiboPackage.Literals.COMPONENT);
     (RiboPackage.Literals.PARAMETER__NAME as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
     (RiboPackage.Literals.PARAMETER__EXPRESSION as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
     (RiboPackage.Literals.PARAMETER__COMMENT as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
     (RiboPackage.Literals.FEATURE__NAME as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
     (RiboPackage.Literals.FEATURE__SUPPRESSED as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EBoolean')!);
+    (RiboPackage.Literals.FEATURE__COMPONENT as BasicEReference).setEType(RiboPackage.Literals.COMPONENT);
     (RiboPackage.Literals.SKETCH__OFFSET as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
     (RiboPackage.Literals.SKETCH__REFERENCE as BasicEReference).setEType(RiboPackage.Literals.CONSTRUCTION_PLANE);
     (RiboPackage.Literals.SKETCH__POINTS as BasicEReference).setEType(RiboPackage.Literals.SKETCH_POINT);
@@ -1090,6 +1382,30 @@ export class RiboPackage extends BasicEPackage {
     (RiboPackage.Literals.CONSTRUCTION_PLANE__NORMAL_Z as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
     (RiboPackage.Literals.CONSTRUCTION_PLANE__OFFSET as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
     (RiboPackage.Literals.CONSTRUCTION_PLANE__ANGLE as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.COMPONENT__NAME as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.COMPONENT__GROUNDED as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EBoolean')!);
+    (RiboPackage.Literals.COMPONENT__VISIBLE as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EBoolean')!);
+    (RiboPackage.Literals.COMPONENT__POSITION_X as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.COMPONENT__POSITION_Y as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.COMPONENT__POSITION_Z as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.COMPONENT__ROTATION_X as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.COMPONENT__ROTATION_Y as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.COMPONENT__ROTATION_Z as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.JOINT__FIRST as BasicEReference).setEType(RiboPackage.Literals.JOINT_ORIGIN);
+    (RiboPackage.Literals.JOINT__SECOND as BasicEReference).setEType(RiboPackage.Literals.JOINT_ORIGIN);
+    (RiboPackage.Literals.JOINT__OFFSET as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.JOINT__ANGLE as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.JOINT__FLIP as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EBoolean')!);
+    (RiboPackage.Literals.JOINT_ORIGIN__COMPONENT as BasicEReference).setEType(RiboPackage.Literals.COMPONENT);
+    (RiboPackage.Literals.JOINT_ORIGIN__ORIGIN_X as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
+    (RiboPackage.Literals.JOINT_ORIGIN__ORIGIN_Y as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
+    (RiboPackage.Literals.JOINT_ORIGIN__ORIGIN_Z as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
+    (RiboPackage.Literals.JOINT_ORIGIN__Z_X as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
+    (RiboPackage.Literals.JOINT_ORIGIN__Z_Y as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
+    (RiboPackage.Literals.JOINT_ORIGIN__Z_Z as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
+    (RiboPackage.Literals.JOINT_ORIGIN__X_X as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
+    (RiboPackage.Literals.JOINT_ORIGIN__X_Y as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
+    (RiboPackage.Literals.JOINT_ORIGIN__X_Z as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
 
     // ============================================
     // Register XML name mappings from ExtendedMetaData annotations

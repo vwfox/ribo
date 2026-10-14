@@ -46,6 +46,12 @@ import type { Hole } from './Hole.js';
 import { HoleImpl } from './HoleImpl.js';
 import type { ConstructionPlane } from './ConstructionPlane.js';
 import { ConstructionPlaneImpl } from './ConstructionPlaneImpl.js';
+import type { Component } from './Component.js';
+import { ComponentImpl } from './ComponentImpl.js';
+import type { Joint } from './Joint.js';
+import { JointImpl } from './JointImpl.js';
+import type { JointOrigin } from './JointOrigin.js';
+import { JointOriginImpl } from './JointOriginImpl.js';
 
 /**
  * Factory for creating Ribo model objects
@@ -201,6 +207,27 @@ export class RiboFactory extends BasicEFactory {
   }
 
   /**
+   * Create a new Component instance
+   */
+  createComponent(): Component {
+    return new ComponentImpl();
+  }
+
+  /**
+   * Create a new Joint instance
+   */
+  createJoint(): Joint {
+    return new JointImpl();
+  }
+
+  /**
+   * Create a new JointOrigin instance
+   */
+  createJointOrigin(): JointOrigin {
+    return new JointOriginImpl();
+  }
+
+  /**
    * Create an instance of the given class
    */
   override create(eClass: EClass): EObject {
@@ -243,6 +270,12 @@ export class RiboFactory extends BasicEFactory {
         return this.createHole();
       case 'ConstructionPlane':
         return this.createConstructionPlane();
+      case 'Component':
+        return this.createComponent();
+      case 'Joint':
+        return this.createJoint();
+      case 'JointOrigin':
+        return this.createJointOrigin();
       default:
         throw new Error(`Unknown class: ${eClass.getName()}`);
     }

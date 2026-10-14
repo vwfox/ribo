@@ -6,6 +6,7 @@
  */
 
 import type { EObject, BasicEObject, EClass, EStructuralFeature } from '@emfts/core';
+import type { Component } from './Component.js';
 
 /**
  * Feature
@@ -14,5 +15,6 @@ import type { EObject, BasicEObject, EClass, EStructuralFeature } from '@emfts/c
 export interface Feature extends EObject {
   name?: string;
   suppressed?: boolean;
+  component?: Component;
 
 }

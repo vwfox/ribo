@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { LineSegments2 } from 'three/addons/lines/LineSegments2.js'
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js'
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js'
-import { originFrame } from 'ribo-geometry'
+import { frameFromNormal, originFrame } from 'ribo-geometry'
 import {
   type AnalysisLayer,
   type Frame,
@@ -44,6 +44,7 @@ const VIEW_VECTORS: Record<ViewDirection, THREE.Vector3> = {
 /** Pointer travel below which a press counts as a click, not a drag */
 const CLICK_TOLERANCE_PX = 4
 const CAMERA_ANIMATION_MS = 280
+const COMPONENT_COLORS = ['#60a5fa', '#f59e0b', '#a78bfa', '#f472b6', '#34d399', '#fb7185', '#facc15']
 /** Screen distance within which an edge counts as under the pointer */
 const EDGE_PICK_PX = 8
 /** How far a remembered pick may lie from the edge or face it stands for, mm */
@@ -101,6 +102,56 @@ function distanceToPolyline(p: THREE.Vector3, points: THREE.Vector3[]): number {
     best = Math.min(best, closest.distanceTo(p))
   }
   return best
+}
+
+/** The circle a polyline runs on, when it does: centre, axis and a point on it */
+function circleOf(points: THREE.Vector3[]): { center: THREE.Vector3; normal: THREE.Vector3; start: THREE.Vector3 } | undefined {
+  if (points.length < 4) return undefined
+  const a = points[0]!
+  const b = points[Math.floor(points.length / 3)]!
+  const c = points[Math.floor((2 * points.length) / 3)]!
+  const ab = b.clone().sub(a)
+  const ac = c.clone().sub(a)
+  const normal = ab.clone().cross(ac)
+  if (normal.lengthSq() < 1e-12) return undefined
+  // Circumcentre of the triangle a, b, c
+  const center = a
+    .clone()
+    .add(
+      ab
+        .clone()
+        .multiplyScalar(ac.lengthSq())
+        .sub(ac.clone().multiplyScalar(ab.lengthSq()))
+        .cross(normal)
+        .divideScalar(2 * normal.lengthSq())
+        .negate(),
+    )
+  normal.normalize()
+  const radius = center.distanceTo(a)
+  const fits = points.every((p) => Math.abs(p.distanceTo(center) - radius) < 1e-3 * Math.max(1, radius) && Math.abs(p.clone().sub(center).dot(normal)) < 1e-3)
+  return fits ? { center, normal, start: a } : undefined
+}
+
+/** Area-weighted centre of a face's triangles */
+function faceCentre(face: FaceTriangles): THREE.Vector3 {
+  const sum = new THREE.Vector3()
+  let area = 0
+  const centroid = new THREE.Vector3()
+  for (const triangle of face.triangles) {
+    const a = triangle.getArea()
+    triangle.getMidpoint(centroid)
+    sum.addScaledVector(centroid, a)
+    area += a
+  }
+  return area > 0 ? sum.divideScalar(area) : sum
+}
+
+/** A joint origin found on geometry, in the coordinates of its component */
+export interface JointOriginPick {
+  component: number
+  origin: Vec3
+  z: Vec3
+  x: Vec3
 }
 
 function distanceToFace(p: THREE.Vector3, face: FaceTriangles): number {
@@ -176,6 +227,8 @@ export interface SceneCallbacks {
   onEdgeClick(midpoint: Vec3, existing: number | undefined): void
   /** A face was clicked while face picking */
   onFaceClick(point: Vec3, existing: number | undefined): void
+  /** A joint origin was picked on a circular edge or a flat face */
+  onJointOrigin(pick: JointOriginPick): void
 }
 
 /** Edges or faces offered for picking, with the picks made so far */
@@ -217,7 +270,13 @@ export class SceneView {
   /** Edges of the pick bodies, drawn faintly over the shown result */
   private readonly ghost = new THREE.Group()
   private readonly picked = new THREE.Group()
+  /** Placement per component index; bodies, sketches and planes are drawn where their component sits */
+  private placements: THREE.Matrix4[] = []
+  /** Component new sketches go into: origin planes and face picks are in its coordinates */
+  private activeComponent = 0
   private modifier: ModifierPicking | undefined
+  private jointPicking = false
+  private readonly jointMarkers = new THREE.Group()
   private readonly lineMaterials: LineMaterial[] = []
   private width = 1
   private height = 1
@@ -263,7 +322,7 @@ export class SceneView {
     this.ortho.add(sun.clone())
     this.scene.add(this.camera, this.ortho)
 
-    this.scene.add(this.grid, this.bodies, this.regions, this.sketches, this.pickers, this.ghost, this.picked, this.hover, this.analysis, this.constructionPlanes, this.axes)
+    this.scene.add(this.grid, this.bodies, this.regions, this.sketches, this.pickers, this.ghost, this.picked, this.hover, this.analysis, this.constructionPlanes, this.jointMarkers, this.axes)
     this.buildGrid()
 
     const canvas = this.renderer.domElement
@@ -290,7 +349,7 @@ export class SceneView {
     this.input.removeEventListener('pointerup', this.onPointerUp)
     this.input.removeEventListener('wheel', this.onWheel)
     this.input.removeEventListener('contextmenu', this.onContextMenu)
-    for (const group of [this.bodies, this.sketches, this.regions, this.pickers, this.ghost, this.picked, this.hover, this.analysis, this.constructionPlanes, this.grid]) clearGroup(group)
+    for (const group of [this.bodies, this.sketches, this.regions, this.pickers, this.ghost, this.picked, this.hover, this.analysis, this.constructionPlanes, this.jointMarkers, this.grid]) clearGroup(group)
     this.renderer.dispose()
     this.renderer.domElement.remove()
   }
@@ -304,6 +363,23 @@ export class SceneView {
 
   // ---------------------------------------------------------------- content
 
+  setPlacements(placements: number[][], active: number): void {
+    this.placements = placements.map((m) => new THREE.Matrix4().fromArray(m))
+    this.activeComponent = active
+  }
+
+  private matrixOf(component: number): THREE.Matrix4 {
+    return this.placements[component] ?? new THREE.Matrix4()
+  }
+
+  /** Places an object built in component coordinates */
+  private place<T extends THREE.Object3D>(object: T, component: number): T {
+    object.matrixAutoUpdate = false
+    object.matrix.premultiply(this.matrixOf(component))
+    object.matrixWorldNeedsUpdate = true
+    return object
+  }
+
   setBodies(meshes: BodyMesh[]): void {
     clearGroup(this.bodies)
     this.bodyMeshes = []
@@ -314,7 +390,8 @@ export class SceneView {
       geometry.setAttribute('normal', new THREE.BufferAttribute(data.normals, 3))
       geometry.setIndex(new THREE.BufferAttribute(data.triangles, 1))
       const material = new THREE.MeshStandardMaterial({
-        color: this.colors.body,
+        // Each component its own colour, so an assembly reads at a glance
+        color: data.component === 0 ? this.colors.body : COMPONENT_COLORS[(data.component - 1) % COMPONENT_COLORS.length]!,
         roughness: 0.55,
         metalness: 0.05,
         // Both sides: a face OpenCascade hands over reversed must not vanish
@@ -323,16 +400,17 @@ export class SceneView {
         polygonOffsetFactor: 1,
         polygonOffsetUnits: 1,
       })
-      const mesh = new THREE.Mesh(geometry, material)
+      const mesh = this.place(new THREE.Mesh(geometry, material), data.component)
+      mesh.updateMatrixWorld(true)
       this.bodies.add(mesh)
       this.bodyMeshes.push({ mesh, data, edges: edgeLines(data), faces: faceTriangles(data) })
 
       const edgeGeometry = new THREE.BufferGeometry()
       edgeGeometry.setAttribute('position', new THREE.BufferAttribute(data.edges, 3))
-      this.bodies.add(new THREE.LineSegments(edgeGeometry, new THREE.LineBasicMaterial({ color: this.colors.edge })))
+      this.bodies.add(this.place(new THREE.LineSegments(edgeGeometry, new THREE.LineBasicMaterial({ color: this.colors.edge })), data.component))
 
       const [minX, minY, minZ, maxX, maxY, maxZ] = data.bounds
-      this.bounds.union(new THREE.Box3(new THREE.Vector3(minX, minY, minZ), new THREE.Vector3(maxX, maxY, maxZ)))
+      this.bounds.union(new THREE.Box3(new THREE.Vector3(minX, minY, minZ), new THREE.Vector3(maxX, maxY, maxZ)).applyMatrix4(this.matrixOf(data.component)))
     }
     this.showPicked()
     this.requestRender()
@@ -363,7 +441,8 @@ export class SceneView {
         geometry.setAttribute('position', new THREE.BufferAttribute(data.vertices, 3))
         geometry.setIndex(new THREE.BufferAttribute(data.triangles, 1))
         // Never added to the scene: only raycast against
-        const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial())
+        const mesh = this.place(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial()), data.component)
+        mesh.updateMatrixWorld(true)
         const edgeGeometry = new THREE.BufferGeometry()
         edgeGeometry.setAttribute('position', new THREE.BufferAttribute(data.edges, 3))
         const ghost = new THREE.LineSegments(
@@ -371,12 +450,78 @@ export class SceneView {
           new THREE.LineBasicMaterial({ color: this.colors.highlight, transparent: true, opacity: 0.45, depthTest: false }),
         )
         ghost.renderOrder = 6
-        this.ghost.add(ghost)
+        this.ghost.add(this.place(ghost, data.component))
         return { mesh, data, edges: edgeLines(data), faces: faceTriangles(data) }
       })
     }
     this.showPicked()
     this.requestRender()
+  }
+
+  // ------------------------------------------------------------ joints
+
+  /** Offers circular edges and flat faces as joint origins */
+  setJointPicking(on: boolean): void {
+    this.jointPicking = on
+    clearGroup(this.hover)
+    this.requestRender()
+  }
+
+  /** Axis triads at joint origins, in assembly coordinates */
+  setJointMarkers(markers: { origin: Vec3; z: Vec3; x: Vec3; component: number }[]): void {
+    clearGroup(this.jointMarkers)
+    for (const marker of markers) this.jointMarkers.add(this.place(this.triad(marker.origin, marker.z, marker.x, 12), marker.component))
+    this.requestRender()
+  }
+
+  private triad(origin: Vec3, z: Vec3, x: Vec3, size: number): THREE.Object3D {
+    const group = new THREE.Group()
+    const o = v3(origin)
+    const zAxis = v3(z).normalize()
+    const xAxis = v3(x).normalize()
+    const yAxis = zAxis.clone().cross(xAxis)
+    for (const [axis, color] of [
+      [xAxis, '#ef4444'],
+      [yAxis, '#22c55e'],
+      [zAxis, '#3b82f6'],
+    ] as const) {
+      const geometry = new THREE.BufferGeometry().setFromPoints([o, o.clone().addScaledVector(axis, size)])
+      const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true }))
+      line.renderOrder = 12
+      group.add(line)
+    }
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(size * 0.12), new THREE.MeshBasicMaterial({ color: this.colors.highlight, depthTest: false, transparent: true }))
+    dot.position.copy(o)
+    dot.renderOrder = 12
+    group.add(dot)
+    return group
+  }
+
+  /** The joint origin under the pointer: a circular edge's centre first, else the centre of a flat face */
+  private jointOriginAt(event: PointerEvent): { pick: JointOriginPick; highlight: THREE.Object3D } | undefined {
+    const edge = this.edgeAt(event)
+    if (edge) {
+      const body = this.pickBodies[edge.body]!
+      const circle = circleOf(body.edges[edge.edge]!.points)
+      if (circle) {
+        const x = circle.start.clone().sub(circle.center).normalize()
+        const pick: JointOriginPick = { component: body.data.component, origin: circle.center.toArray() as Vec3, z: circle.normal.toArray() as Vec3, x: x.toArray() as Vec3 }
+        const highlight = new THREE.Group()
+        highlight.add(this.thickLine(body.edges[edge.edge]!.points, this.colors.highlight), this.triad(pick.origin, pick.z, pick.x, 8))
+        return { pick, highlight: this.place(highlight, pick.component) }
+      }
+    }
+    const face = this.faceAt(event)
+    if (!face) return undefined
+    const body = this.pickBodies[face.body]!
+    const plane = body.data.faces[face.face]?.plane
+    if (!plane) return undefined
+    const centre = faceCentre(body.faces[face.face]!)
+    const frame = frameFromNormal(centre.toArray() as Vec3, plane.normal)
+    const pick: JointOriginPick = { component: body.data.component, origin: centre.toArray() as Vec3, z: frame.normal, x: frame.x }
+    const highlight = new THREE.Group()
+    highlight.add(this.faceHighlight(body.data, face.face, this.colors.highlight, 0.35), this.triad(pick.origin, pick.z, pick.x, 8))
+    return { pick, highlight: this.place(highlight, pick.component) }
   }
 
   /** Offers edges or faces for picking (for fillet, chamfer, shell), or stops with undefined */
@@ -428,10 +573,10 @@ export class SceneView {
     for (const pick of modifier.picks) {
       if (modifier.mode === 'edges') {
         const hit = this.matchEdge(pick)
-        if (hit) this.picked.add(this.thickLine(this.pickBodies[hit.body]!.edges[hit.edge]!.points, this.colors.regionPicked))
+        if (hit) this.picked.add(this.place(this.thickLine(this.pickBodies[hit.body]!.edges[hit.edge]!.points, this.colors.regionPicked), this.pickBodies[hit.body]!.data.component))
       } else {
         const hit = this.matchFace(pick)
-        if (hit) this.picked.add(this.faceHighlight(this.pickBodies[hit.body]!.data, hit.face, this.colors.regionPicked, 0.55))
+        if (hit) this.picked.add(this.place(this.faceHighlight(this.pickBodies[hit.body]!.data, hit.face, this.colors.regionPicked, 0.55), this.pickBodies[hit.body]!.data.component))
       }
     }
   }
@@ -473,9 +618,10 @@ export class SceneView {
     }
     let best: { body: number; edge: number } | undefined
     let bestDistance = EDGE_PICK_PX
-    this.pickBodies.forEach(({ edges }, body) =>
+    this.pickBodies.forEach(({ edges, data }, body) =>
       edges.forEach((line, edge) => {
-        const screen = line.points.map(toScreen)
+        const matrix = this.matrixOf(data.component)
+        const screen = line.points.map((p) => toScreen(p.clone().applyMatrix4(matrix)))
         for (let i = 1; i < screen.length; i++) {
           const a = screen[i - 1]!
           const b = screen[i]!
@@ -504,8 +650,11 @@ export class SceneView {
     if (!hit || hit.faceIndex === undefined || hit.faceIndex === null) return undefined
     const body = this.pickBodies.findIndex((b) => b.mesh === hit.object)
     const index = hit.faceIndex * 3
-    const face = this.pickBodies[body]!.data.faces.findIndex((f) => index >= f.start && index < f.start + f.count)
-    return face < 0 ? undefined : { body, face, point: hit.point }
+    const data = this.pickBodies[body]!.data
+    const face = data.faces.findIndex((f) => index >= f.start && index < f.start + f.count)
+    // Picks are kept in the coordinates of the body's component
+    const local = hit.point.clone().applyMatrix4(this.matrixOf(data.component).clone().invert())
+    return face < 0 ? undefined : { body, face, point: local }
   }
 
   private hoverModifier(event: PointerEvent): void {
@@ -515,13 +664,13 @@ export class SceneView {
     if (modifier.mode === 'edges') {
       const hit = this.edgeAt(event)
       if (hit) {
-        this.hover.add(this.thickLine(this.pickBodies[hit.body]!.edges[hit.edge]!.points, this.colors.highlight))
+        this.hover.add(this.place(this.thickLine(this.pickBodies[hit.body]!.edges[hit.edge]!.points, this.colors.highlight), this.pickBodies[hit.body]!.data.component))
         found = true
       }
     } else {
       const hit = this.faceAt(event)
       if (hit) {
-        this.hover.add(this.faceHighlight(this.pickBodies[hit.body]!.data, hit.face, this.colors.highlight, 0.45))
+        this.hover.add(this.place(this.faceHighlight(this.pickBodies[hit.body]!.data, hit.face, this.colors.highlight, 0.45), this.pickBodies[hit.body]!.data.component))
         found = true
       }
     }
@@ -567,7 +716,7 @@ export class SceneView {
         const material = curve.construction
           ? new THREE.LineDashedMaterial({ color, dashSize: 1.5, gapSize: 1, depthTest: false, transparent: true })
           : new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true })
-        const line = new THREE.Line(geometry, material)
+        const line = this.place(new THREE.Line(geometry, material), feature.component)
         if (curve.construction) line.computeLineDistances()
         line.renderOrder = 10
         this.sketches.add(line)
@@ -587,7 +736,8 @@ export class SceneView {
       this.requestRender()
       return
     }
-    const matrix = planeMatrix(sketch.frame)
+    const matrix = this.matrixOf(sketch.component).clone().multiply(planeMatrix(sketch.frame))
+    const toLocal = this.matrixOf(sketch.component).clone().invert()
     sketch.regions.forEach((region, index) => {
       const geometry = new THREE.ShapeGeometry(regionShape(region))
       const isPicked = picked.has(index)
@@ -614,7 +764,7 @@ export class SceneView {
           highlight.applyMatrix4(matrix)
           highlight.renderOrder = 6
           highlight.userData.sharedGeometry = true
-          return { kind: 'region', point: worldToSketch(sketch.frame, hit.point), highlight }
+          return { kind: 'region', point: worldToSketch(sketch.frame, hit.point.clone().applyMatrix4(toLocal)), highlight }
         },
       })
     })
@@ -637,9 +787,9 @@ export class SceneView {
         geometry,
         new THREE.MeshBasicMaterial({ color: this.colors.plane, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false }),
       )
-      quad.applyMatrix4(planeMatrix(originFrame(plane)))
+      quad.applyMatrix4(this.matrixOf(this.activeComponent).clone().multiply(planeMatrix(originFrame(plane))))
       const outline = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({ color: this.colors.plane }))
-      outline.applyMatrix4(planeMatrix(originFrame(plane)))
+      outline.applyMatrix4(this.matrixOf(this.activeComponent).clone().multiply(planeMatrix(originFrame(plane))))
       this.pickers.add(quad, outline)
       this.pickTargets.push({
         object: quad,
@@ -648,7 +798,7 @@ export class SceneView {
             geometry,
             new THREE.MeshBasicMaterial({ color: this.colors.highlight, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }),
           )
-          highlight.applyMatrix4(planeMatrix(originFrame(plane)))
+          highlight.applyMatrix4(this.matrixOf(this.activeComponent).clone().multiply(planeMatrix(originFrame(plane))))
           highlight.userData.sharedGeometry = true
           return { kind: 'plane', pick: { kind: 'origin', plane, offset: 0 }, highlight }
         },
@@ -699,15 +849,20 @@ export class SceneView {
     const index = hit.faceIndex * 3
     const face = data.faces.find((f) => index >= f.start && index < f.start + f.count)
     if (!face?.plane) return undefined
-    const [nx, ny, nz] = face.plane.normal
-    const [ox, oy, oz] = face.plane.origin
+    // From the body's component into the coordinates of the active component, where the sketch will live
+    const toActive = this.matrixOf(this.activeComponent).clone().invert().multiply(this.matrixOf(data.component))
+    const normal = v3(face.plane.normal).transformDirection(toActive)
+    const origin = v3(face.plane.origin).applyMatrix4(toActive)
+    const point = hit.point.clone().applyMatrix4(this.matrixOf(this.activeComponent).clone().invert())
+    const [nx, ny, nz] = normal.toArray()
+    const [ox, oy, oz] = origin.toArray()
     const round = (value: number) => Math.round(value * 1e6) / 1e6
     // Faces parallel to an origin plane become that plane with an offset; others a plane of their own
     let pick: PlanePick
     if (Math.abs(nz) > 0.9999) pick = { kind: 'origin', plane: 'XY', offset: round(oz) }
     else if (Math.abs(ny) > 0.9999) pick = { kind: 'origin', plane: 'XZ', offset: round(-oy) }
     else if (Math.abs(nx) > 0.9999) pick = { kind: 'origin', plane: 'YZ', offset: round(ox) }
-    else pick = { kind: 'face', origin: hit.point.toArray() as Vec3, normal: [nx, ny, nz] }
+    else pick = { kind: 'face', origin: point.toArray() as Vec3, normal: [nx, ny, nz] }
 
     const positions = new Float32Array(face.count * 3)
     for (let i = 0; i < face.count; i++) {
@@ -721,7 +876,7 @@ export class SceneView {
       new THREE.MeshBasicMaterial({ color: this.colors.highlight, transparent: true, opacity: 0.6, depthTest: false, side: THREE.DoubleSide }),
     )
     highlight.renderOrder = 7
-    return { kind: 'plane', pick, highlight }
+    return { kind: 'plane', pick, highlight: this.place(highlight, data.component) }
   }
 
   // ---------------------------------------------------------------- camera
@@ -895,7 +1050,13 @@ export class SceneView {
       return
     }
     if (pressed || this.view2d) return
-    if (this.modifier && !this.planePickResolve) this.hoverModifier(event)
+    if (this.jointPicking && !this.planePickResolve) {
+      clearGroup(this.hover)
+      const found = this.jointOriginAt(event)
+      if (found) this.hover.add(found.highlight)
+      this.input.style.cursor = found ? 'pointer' : ''
+      this.requestRender()
+    } else if (this.modifier && !this.planePickResolve) this.hoverModifier(event)
     else if (this.pickTargets.length) this.updateHover(event)
   }
 
@@ -905,6 +1066,11 @@ export class SceneView {
     if (!pressed || pressed.panning) return
     const moved = Math.hypot(event.clientX - pressed.x, event.clientY - pressed.y)
     if (pressed.button !== 0 || moved > CLICK_TOLERANCE_PX || this.view2d) return
+    if (this.jointPicking && !this.planePickResolve) {
+      const found = this.jointOriginAt(event)
+      if (found) this.callbacks.onJointOrigin(found.pick)
+      return
+    }
     if (this.modifier && !this.planePickResolve) {
       this.clickModifier(event)
       return
@@ -952,20 +1118,20 @@ export class SceneView {
   }
 
   /** Construction planes as translucent squares; the highlighted one stronger */
-  setConstructionPlanes(planes: { index: number; frame: Frame }[], highlighted?: number): void {
+  setConstructionPlanes(planes: { index: number; frame: Frame; component: number }[], highlighted?: number): void {
     clearGroup(this.constructionPlanes)
     const size = 80
-    for (const { index, frame } of planes) {
+    for (const { index, frame, component } of planes) {
       const geometry = new THREE.PlaneGeometry(size, size)
       const strong = index === highlighted
       const quad = new THREE.Mesh(
         geometry,
         new THREE.MeshBasicMaterial({ color: strong ? this.colors.highlight : this.colors.plane, transparent: true, opacity: strong ? 0.3 : 0.12, side: THREE.DoubleSide, depthWrite: false }),
       )
-      quad.applyMatrix4(planeMatrix(frame))
+      quad.applyMatrix4(this.matrixOf(component).clone().multiply(planeMatrix(frame)))
       quad.userData.planeIndex = index
       const outline = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({ color: strong ? this.colors.highlight : this.colors.plane }))
-      outline.applyMatrix4(planeMatrix(frame))
+      outline.applyMatrix4(this.matrixOf(component).clone().multiply(planeMatrix(frame)))
       this.constructionPlanes.add(quad, outline)
     }
     this.requestRender()

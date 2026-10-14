@@ -19,12 +19,13 @@ import {
   isSketch,
   type ConstructionPlane,
   type Design,
+  type Feature,
   type Parameter,
   type ProfileFeature,
   type Sketch,
   type SketchCircle,
 } from 'ribo-model'
-import type { BuildPlan, FeatureProblem, Frame, PlanCurve, PlanFeature, PlanOperation, PlanRegion, Vec2, Vec3 } from 'ribo-contracts'
+import type { BuildPlan, FeatureProblem, Frame, HoleFeature, ModifierFeature, PlanCurve, PlanFeature, PlanOperation, PlanRegion, Vec2, Vec3 } from 'ribo-contracts'
 import { evaluateExpression, type Scope } from './expression'
 import { findRegions, frameFromNormal, offsetFrame, originFrame, regionAt, tiltFrame } from 'ribo-geometry'
 
@@ -143,7 +144,7 @@ export function compilePlan(design: Design): CompiledPlan {
   const features = design.features.toArray()
   const rollback = design.rollback ?? -1
   const end = rollback >= 0 ? Math.min(rollback, features.length) : features.length
-  const planned: BuildPlan['features'] = []
+  const planned: (PlanFeature | ModifierFeature | HoleFeature)[] = []
   const problems: FeatureProblem[] = []
   /** Construction planes that made it into the plan */
   const planes = new Set<ConstructionPlane>()
@@ -266,5 +267,20 @@ export function compilePlan(design: Design): CompiledPlan {
     }
   })
 
-  return { plan: { features: planned }, problems }
+  return { plan: { features: planned.map((f) => ({ ...f, component: buildComponent(design, features[f.index]!) })) }, problems }
+}
+
+/** Index of a component in the plan: 0 is the design itself, i + 1 its i-th component */
+export function componentIndex(design: Design, component: { eContainer(): unknown } | undefined | null): number {
+  if (!component) return 0
+  return design.components.indexOf(component as never) + 1
+}
+
+/**
+ * The component a feature builds in. Features working on a sketch build where
+ * the sketch is, so the sketch's coordinates are the bodies' coordinates.
+ */
+export function buildComponent(design: Design, feature: Feature): number {
+  const sketch = isProfileFeature(feature) || isHole(feature) ? feature.sketch : undefined
+  return componentIndex(design, (sketch ?? feature).component)
 }

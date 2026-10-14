@@ -8,6 +8,7 @@
 import type { EObject, EList, BasicEObject, EClass, EStructuralFeature } from '@emfts/core';
 import type { Parameter } from './Parameter.js';
 import type { Feature } from './Feature.js';
+import type { Component } from './Component.js';
 
 /**
  * Design
@@ -18,5 +19,7 @@ export interface Design extends EObject {
   parameters: EList<Parameter>;
   features: EList<Feature>;
   rollback: number;
+  components: EList<Component>;
+  activeComponent?: Component;
 
 }

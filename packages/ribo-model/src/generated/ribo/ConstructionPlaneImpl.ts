@@ -19,17 +19,17 @@ import { RiboPackage } from './RiboPackage.js';
  */
 export class ConstructionPlaneImpl extends FeatureImpl implements ConstructionPlane {
   // Feature ID Constants (eLiterals)
-  static readonly BASE: number = 2;
-  static readonly REFERENCE: number = 3;
-  static readonly ORIGIN_X: number = 4;
-  static readonly ORIGIN_Y: number = 5;
-  static readonly ORIGIN_Z: number = 6;
-  static readonly NORMAL_X: number = 7;
-  static readonly NORMAL_Y: number = 8;
-  static readonly NORMAL_Z: number = 9;
-  static readonly OFFSET: number = 10;
-  static readonly ANGLE: number = 11;
-  static readonly TILT_AXIS: number = 12;
+  static readonly BASE: number = 3;
+  static readonly REFERENCE: number = 4;
+  static readonly ORIGIN_X: number = 5;
+  static readonly ORIGIN_Y: number = 6;
+  static readonly ORIGIN_Z: number = 7;
+  static readonly NORMAL_X: number = 8;
+  static readonly NORMAL_Y: number = 9;
+  static readonly NORMAL_Z: number = 10;
+  static readonly OFFSET: number = 11;
+  static readonly ANGLE: number = 12;
+  static readonly TILT_AXIS: number = 13;
 
   // Private fields
   private _base: PlaneBase = PlaneBase.XY;

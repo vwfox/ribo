@@ -128,8 +128,17 @@ export interface HoleFeature {
   reversed: boolean
 }
 
+/**
+ * A rigid placement as a 4×4 matrix, column-major like three.js: a point p of
+ * a component lands at M·p in the assembly.
+ */
+export type Matrix = number[]
+
+/** Every planned feature knows the component it builds in: 0 is the design itself, i + 1 its i-th component */
+export type PlannedFeature = (PlanFeature | ModifierFeature | HoleFeature) & { component: number }
+
 export interface BuildPlan {
-  features: (PlanFeature | ModifierFeature | HoleFeature)[]
+  features: PlannedFeature[]
 }
 
 /** A problem with one timeline feature, by its index in Design.features. */
@@ -155,6 +164,8 @@ export interface BodyMesh {
   bounds: [number, number, number, number, number, number]
   /** Volume in mm³ */
   volume: number
+  /** Index of the component the body belongs to (0: the design itself) */
+  component: number
   /** Triangle ranges of the B-rep faces, with the plane of the planar ones */
   faces: BodyFace[]
 }

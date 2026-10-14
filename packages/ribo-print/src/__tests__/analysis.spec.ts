@@ -26,6 +26,7 @@ function box(x0: number, y0: number, z0: number, x1: number, y1: number, z1: num
     edgeGroups: [],
     bounds: [x0, y0, z0, x1, y1, z1],
     volume: (x1 - x0) * (y1 - y0) * (z1 - z0),
+    component: 0,
     faces: [],
   }
 }

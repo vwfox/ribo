@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Button from 'primevue/button'
-import type { DocumentService } from 'ribo-contracts'
-import { isBodyModifier, isEdgeFeature, isHole, isFillet, isProfileFeature, isShell, isSketch, sketchOf, type EdgeFeature, type ProfileFeature, type Shell } from 'ribo-model'
+import type { BodyMesh, DocumentService, Vec3 } from 'ribo-contracts'
+import { isBodyModifier, isEdgeFeature, isHole, isJoint, isFillet, isProfileFeature, isShell, isSketch, sketchOf, type EdgeFeature, type ProfileFeature, type Shell } from 'ribo-model'
 import { SceneView, type SceneColors, type ViewDirection } from './SceneView'
 import type { ViewportController } from './ViewportController'
 
@@ -67,19 +67,36 @@ const modifierFeature = computed<EdgeFeature | Shell | undefined>(() => {
   return !sketchMode.value && isBodyModifier(selected) ? selected : undefined
 })
 
+/** The joint whose origins are being picked */
+const jointFeature = computed(() => {
+  void props.document.revision.value
+  const selected = props.document.selection.value
+  return !sketchMode.value && isJoint(selected) && (!selected.first || !selected.second) ? selected : undefined
+})
+
 const modifierBanner = computed(() => {
+  const joint = jointFeature.value
+  if (joint) return joint.first ? 'Ursprung am zweiten Bauteil anklicken: Kreiskante oder ebene Fläche' : 'Ursprung am ersten Bauteil anklicken: Kreiskante oder ebene Fläche'
   const feature = modifierFeature.value
   if (!feature) return undefined
   if (isShell(feature)) return 'Flächen anklicken, die offen bleiben sollen · erneuter Klick entfernt sie'
   return `Kanten zum ${isFillet(feature) ? 'Abrunden' : 'Fasen'} anklicken · erneuter Klick entfernt sie`
 })
 
+/** Bodies of components the user has not hidden */
+const shownBodies = (result: { bodies: BodyMesh[] } | undefined) =>
+  (result?.bodies ?? []).filter((b) => props.document.componentAt(b.component)?.visible !== false)
+
 function updateBodies() {
   if (!scene) return
   const hadBodies = scene.hasBodies()
+  const design = props.document.design.value
+  scene.setPlacements(props.document.placements.value, props.document.componentIndexOf(design.activeComponent))
   // The result is shown, also while editing a fillet; its edges are picked on the bodies before it
-  scene.setBodies(props.document.result.value?.bodies ?? [])
-  scene.setPickBodies(modifierFeature.value ? (props.document.inputResult.value?.bodies ?? []) : undefined)
+  scene.setBodies(shownBodies(props.document.result.value))
+  scene.setPickBodies(modifierFeature.value ? shownBodies(props.document.inputResult.value) : undefined)
+  scene.setJointPicking(jointFeature.value !== undefined)
+  updateJointMarkers()
   if (!hadBodies && scene.hasBodies() && !sketchMode.value) scene.view('iso')
   updateModifier()
 }
@@ -119,11 +136,29 @@ function updateSketches() {
   scene.setSketches(plan, visible, isSketch(document.selection.value) ? highlighted : undefined)
 }
 
+function updateJointMarkers() {
+  if (!scene) return
+  const selected = props.document.selection.value
+  const markers = []
+  if (isJoint(selected)) {
+    for (const origin of [selected.first, selected.second]) {
+      if (!origin) continue
+      markers.push({
+        origin: [origin.originX, origin.originY, origin.originZ] as Vec3,
+        z: [origin.zX, origin.zY, origin.zZ] as Vec3,
+        x: [origin.xX, origin.xY, origin.xZ] as Vec3,
+        component: props.document.componentIndexOf(origin.component),
+      })
+    }
+  }
+  scene.setJointMarkers(markers)
+}
+
 function updatePlanes() {
   if (!scene) return
   const features = props.document.design.value.features.toArray()
   const selected = props.document.selection.value
-  const planes = props.document.plan.value.features.flatMap((f) => (f.kind === 'plane' ? [{ index: f.index, frame: f.frame }] : []))
+  const planes = props.document.plan.value.features.flatMap((f) => (f.kind === 'plane' ? [{ index: f.index, frame: f.frame, component: f.component }] : []))
   scene.setConstructionPlanes(planes, selected ? features.indexOf(selected as never) : undefined)
 }
 
@@ -146,7 +181,7 @@ function view(direction: ViewDirection) {
 }
 
 /** A feature whose step is open in the viewport: picking profiles, edges or faces */
-const openStep = computed(() => profileFeature.value ?? modifierFeature.value)
+const openStep = computed(() => profileFeature.value ?? modifierFeature.value ?? jointFeature.value)
 
 /** Closes the open step; its changes are already applied */
 function applyStep() {
@@ -179,6 +214,10 @@ onMounted(() => {
       const feature = modifierFeature.value
       if (isShell(feature)) props.document.toggleFace(feature, point, existing)
     },
+    onJointOrigin: (pick) => {
+      const joint = jointFeature.value
+      if (joint) props.document.setJointOrigin(joint, joint.first ? 'second' : 'first', pick.component, pick.origin, pick.z, pick.x)
+    },
   })
   scene.view('iso')
   props.controller.attach(scene)
@@ -186,10 +225,20 @@ onMounted(() => {
   colorScheme.addEventListener('change', onColorScheme)
   window.addEventListener('keydown', onKeyDown)
 
-  watch([() => props.document.result.value, () => props.document.inputResult.value, modifierFeature], updateBodies, { immediate: true })
-  watch(() => props.document.revision.value, updateModifier)
   watch(
-    [() => props.document.plan.value, () => props.document.selection.value, sketchMode],
+    [() => props.document.result.value, () => props.document.inputResult.value, () => props.document.placements.value, modifierFeature, jointFeature],
+    updateBodies,
+    { immediate: true },
+  )
+  watch(
+    () => props.document.revision.value,
+    () => {
+      updateModifier()
+      updateJointMarkers()
+    },
+  )
+  watch(
+    [() => props.document.plan.value, () => props.document.selection.value, () => props.document.placements.value, sketchMode],
     () => {
       updateSketches()
       updateRegions()

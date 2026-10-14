@@ -7,6 +7,7 @@
 
 import { BasicEObject } from '@emfts/core';
 import type { EClass, EStructuralFeature } from '@emfts/core';
+import type { Component } from './Component.js';
 import type { Feature } from './Feature.js';
 import { RiboPackage } from './RiboPackage.js';
 
@@ -18,10 +19,12 @@ export abstract class FeatureImpl extends BasicEObject implements Feature {
   // Feature ID Constants (eLiterals)
   static readonly NAME: number = 0;
   static readonly SUPPRESSED: number = 1;
+  static readonly COMPONENT: number = 2;
 
   // Private fields
   private _name?: string;
   private _suppressed: boolean = false;
+  private _component?: Component;
 
   /**
    * Returns the EClass of this object
@@ -79,6 +82,30 @@ export abstract class FeatureImpl extends BasicEObject implements Feature {
     }
   }
 
+  get component(): Component {
+    return this._component!;
+  }
+
+  set component(value: Component) {
+    const oldValue = this._component;
+    this._component = value;
+    if (this.eDeliver()) {
+      this.eNotify({
+        getNotifier: () => this,
+        getEventType: () => 1, // SET
+        getFeature: () => this.eClass().getEStructuralFeature(FeatureImpl.COMPONENT),
+        getOldValue: () => oldValue,
+        getNewValue: () => value,
+        getPosition: () => -1,
+        wasSet: () => true,
+        isTouch: () => false,
+        isReset: () => false,
+        getFeatureID: () => FeatureImpl.COMPONENT,
+        merge: () => false
+      });
+    }
+  }
+
   // Reflective API
 
   /**
@@ -91,6 +118,8 @@ export abstract class FeatureImpl extends BasicEObject implements Feature {
         return this.name;
       case FeatureImpl.SUPPRESSED:
         return this.suppressed;
+      case FeatureImpl.COMPONENT:
+        return this.component;
       default:
         return super.eGet(feature);
     }
@@ -110,6 +139,10 @@ export abstract class FeatureImpl extends BasicEObject implements Feature {
         this.suppressed = newValue as boolean;
         super.eSet(feature, newValue);
         break;
+      case FeatureImpl.COMPONENT:
+        this.component = newValue as Component;
+        super.eSet(feature, newValue);
+        break;
       default:
         super.eSet(feature, newValue);
     }
@@ -125,6 +158,8 @@ export abstract class FeatureImpl extends BasicEObject implements Feature {
         return this._name !== undefined;
       case FeatureImpl.SUPPRESSED:
         return this._suppressed !== false;
+      case FeatureImpl.COMPONENT:
+        return this._component !== undefined;
       default:
         return super.eIsSet(feature);
     }
@@ -141,6 +176,9 @@ export abstract class FeatureImpl extends BasicEObject implements Feature {
         return;
       case FeatureImpl.SUPPRESSED:
         this._suppressed = false;
+        return;
+      case FeatureImpl.COMPONENT:
+        this._component = undefined;
         return;
       default:
         super.eUnset(feature);

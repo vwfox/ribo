@@ -1,18 +1,23 @@
 <script setup lang="ts">
-import { computed, inject, onBeforeUnmount, onMounted } from 'vue'
+import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue'
 import Button from 'primevue/button'
 import Toast from 'primevue/toast'
 import { ACTIONS, PANELS, type ActionContribution, type ActionRegistry, type PanelLocation, type PanelRegistry } from 'ribo-contracts'
 import { shortcutOf } from './registries'
+import DockArea from './DockArea.vue'
+import FloatingPanel from './FloatingPanel.vue'
+import { LAYOUT, type DockArea as Area, type Layout } from './layout'
 
 const panels = inject(PANELS) as PanelRegistry
 const actions = inject(ACTIONS) as ActionRegistry
+const layout = inject(LAYOUT) as Layout
 
 const GROUP_LABELS: Record<string, string> = {
   file: 'Datei',
   edit: 'Bearbeiten',
   create: 'Erstellen',
   modify: 'Ändern',
+  assemble: 'Zusammenbauen',
   view: 'Ansicht',
   'sketch-create': 'Skizze erstellen',
   'sketch-modify': 'Ändern',
@@ -32,10 +37,59 @@ const groups = computed(() => {
   return [...result.entries()]
 })
 
-const panelsAt = (location: PanelLocation) => panels.panels.filter((p) => p.location === location && isVisible(p))
+const visiblePanels = computed(() => panels.panels.filter(isVisible))
+const panelsAt = (area: Area | 'float' | PanelLocation) => visiblePanels.value.filter((p) => layout.areaOf(p) === area)
 const left = computed(() => panelsAt('left'))
 const center = computed(() => panelsAt('center'))
 const right = computed(() => panelsAt('right'))
+const bottom = computed(() => panelsAt('bottom'))
+const floating = computed(() => panelsAt('float'))
+
+const workbench = ref<HTMLElement>()
+const centerArea = ref<HTMLElement>()
+const workbenchBounds = () => workbench.value?.getBoundingClientRect()
+
+/** Over the viewport a dragged panel would float */
+function onCenterDragOver(event: DragEvent) {
+  if (!layout.dragging.value) return
+  event.preventDefault()
+  layout.setDropTarget('float')
+}
+
+function onDrop(event: DragEvent) {
+  const id = event.dataTransfer?.getData('application/x-ribo-panel') || layout.dragging.value
+  const panel = panels.panels.find((p) => p.id === id)
+  const target = layout.dropTarget.value
+  layout.endDrag()
+  if (!panel || !target) return
+  event.preventDefault()
+  if (target === 'float') {
+    const bounds = workbenchBounds()
+    layout.moveTo(panel, 'float', { x: event.clientX - (bounds?.left ?? 0) - 40, y: event.clientY - (bounds?.top ?? 0) - 12 })
+  } else {
+    layout.moveTo(panel, target)
+  }
+}
+
+/** Splitters: drag the edge of a dock area to resize it */
+function startResize(event: PointerEvent, area: Area) {
+  const handle = event.currentTarget as HTMLElement
+  handle.setPointerCapture(event.pointerId)
+  const bounds = workbenchBounds()!
+  const move = (e: PointerEvent) => {
+    if (area === 'left') layout.resize('left', e.clientX - bounds.left)
+    else if (area === 'right') layout.resize('right', bounds.right - e.clientX)
+    else layout.resize('bottom', bounds.bottom - e.clientY)
+  }
+  const up = () => {
+    handle.removeEventListener('pointermove', move)
+    handle.removeEventListener('pointerup', up)
+    document.body.style.cursor = ''
+  }
+  document.body.style.cursor = area === 'bottom' ? 'row-resize' : 'col-resize'
+  handle.addEventListener('pointermove', move)
+  handle.addEventListener('pointerup', up)
+}
 
 const tooltipOf = (action: ActionContribution) => (action.shortcut ? `${action.label} (${action.shortcut})` : action.label)
 
@@ -90,24 +144,23 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown))
       </div>
     </header>
 
-    <main class="ribo-workbench">
-      <aside v-if="left.length" class="ribo-side ribo-side-left">
-        <section v-for="panel in left" :key="panel.id" class="ribo-panel">
-          <h2 class="ribo-panel-title"><i v-if="panel.icon" :class="panel.icon" /> {{ panel.title }}</h2>
-          <div class="ribo-panel-body"><component :is="panel.component" /></div>
-        </section>
-      </aside>
+    <main ref="workbench" class="ribo-workbench" @drop="onDrop" @dragover.prevent>
+      <DockArea area="left" :panels="left" :layout="layout" :style="{ flexBasis: `${layout.state.sizes.left}px` }" class="ribo-side ribo-side-left" />
+      <div v-if="left.length" class="ribo-splitter vertical" @pointerdown="startResize($event, 'left')" />
 
-      <section class="ribo-center">
-        <component :is="panel.component" v-for="panel in center" :key="panel.id" />
-      </section>
-
-      <aside v-if="right.length" class="ribo-side ribo-side-right">
-        <section v-for="panel in right" :key="panel.id" class="ribo-panel">
-          <h2 class="ribo-panel-title"><i v-if="panel.icon" :class="panel.icon" /> {{ panel.title }}</h2>
-          <div class="ribo-panel-body"><component :is="panel.component" /></div>
+      <div class="ribo-middle">
+        <section ref="centerArea" class="ribo-center" :class="{ 'float-target': layout.dropTarget.value === 'float' }" @dragover="onCenterDragOver">
+          <component :is="panel.component" v-for="panel in center" :key="panel.id" />
+          <div v-if="layout.dropTarget.value === 'float'" class="ribo-float-hint"><i class="pi pi-external-link" /> Als Fenster ablegen</div>
         </section>
-      </aside>
+        <div v-if="bottom.length" class="ribo-splitter horizontal" @pointerdown="startResize($event, 'bottom')" />
+        <DockArea area="bottom" :panels="bottom" :layout="layout" :style="{ flexBasis: `${layout.state.sizes.bottom}px` }" class="ribo-bottom" />
+      </div>
+
+      <div v-if="right.length" class="ribo-splitter vertical" @pointerdown="startResize($event, 'right')" />
+      <DockArea area="right" :panels="right" :layout="layout" :style="{ flexBasis: `${layout.state.sizes.right}px` }" class="ribo-side ribo-side-right" />
+
+      <FloatingPanel v-for="panel in floating" :key="panel.id" :panel="panel" :layout="layout" :bounds="workbenchBounds" />
     </main>
 
     <Toast position="bottom-right" />
@@ -199,16 +252,14 @@ body {
 }
 
 .ribo-workbench {
+  position: relative;
   flex: 1;
   display: flex;
   min-height: 0;
 }
 
 .ribo-side {
-  width: 300px;
-  flex: none;
-  overflow-y: auto;
-  background: var(--p-content-background);
+  flex: 0 0 300px;
 }
 
 .ribo-side-left {
@@ -219,27 +270,64 @@ body {
   border-left: 1px solid var(--p-content-border-color);
 }
 
+.ribo-middle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .ribo-center {
   flex: 1;
   position: relative;
-  min-width: 0;
+  min-height: 0;
 }
 
-.ribo-panel + .ribo-panel {
+.ribo-center.float-target {
+  outline: 2px dashed var(--p-primary-color);
+  outline-offset: -4px;
+}
+
+.ribo-float-hint {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 30;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  background: var(--p-primary-color);
+  color: var(--p-primary-contrast-color);
+  font-size: 0.8rem;
+  pointer-events: none;
+}
+
+.ribo-bottom {
+  flex: 0 0 150px;
+  max-height: 70%;
   border-top: 1px solid var(--p-content-border-color);
 }
 
-.ribo-panel-title {
-  margin: 0;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--p-text-muted-color);
+.ribo-splitter {
+  flex: none;
+  z-index: 5;
+  background: transparent;
+  transition: background 0.15s;
 }
 
-.ribo-panel-body {
-  padding: 0 0.75rem 0.75rem;
+.ribo-splitter.vertical {
+  width: 5px;
+  margin: 0 -2px;
+  cursor: col-resize;
+}
+
+.ribo-splitter.horizontal {
+  height: 5px;
+  margin: -2px 0;
+  cursor: row-resize;
+}
+
+.ribo-splitter:hover {
+  background: var(--p-primary-color);
 }
 </style>

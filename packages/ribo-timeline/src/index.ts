@@ -1,12 +1,13 @@
 /**
- * ribo browser module: parameters and timeline on the left, the actions that
+ * ribo browser module: the object browser, the timeline, the actions that
  * create features, and undo/redo.
  */
 
 import { defineComponent, h, markRaw } from 'tsm:vue'
 import type { ModuleContext } from '@eclipse-daanse/tsm'
 import { ACTIONS, DOCUMENT, PANELS, SKETCHER, VIEWPORT } from 'ribo-contracts'
-import { isFeature, isParameter, isSketch, type Sketch } from 'ribo-model'
+import { isComponent, isFeature, isParameter, isSketch, type Sketch } from 'ribo-model'
+import BrowserPanel from './BrowserPanel.vue'
 import TimelinePanel from './TimelinePanel.vue'
 
 const cleanups: (() => void)[] = []
@@ -17,8 +18,13 @@ export async function activate(context: ModuleContext): Promise<void> {
   const viewport = context.services.getRequired(VIEWPORT)
   const editSketch = (sketch: Sketch) => context.services.get(SKETCHER)?.edit(sketch)
 
-  const panel = markRaw(defineComponent({ name: 'RiboTimelinePanel', setup: () => () => h(TimelinePanel, { document, editSketch }) }))
-  cleanups.push(context.services.getRequired(PANELS).register({ id: 'browser', title: 'Browser', icon: 'pi pi-list', location: 'left', component: panel }))
+  const panels = context.services.getRequired(PANELS)
+  const browser = markRaw(defineComponent({ name: 'RiboBrowserPanel', setup: () => () => h(BrowserPanel, { document, editSketch }) }))
+  const timeline = markRaw(defineComponent({ name: 'RiboTimelinePanel', setup: () => () => h(TimelinePanel, { document, editSketch }) }))
+  cleanups.push(
+    panels.register({ id: 'browser', title: 'Browser', icon: 'pi pi-sitemap', location: 'left', component: browser }),
+    panels.register({ id: 'timeline', title: 'Zeitleiste', icon: 'pi pi-history', location: 'bottom', component: timeline }),
+  )
 
   const inModel = () => viewport.mode.value === 'model'
   const hasBodies = () => (document.result.value?.bodies.length ?? 0) > 0
@@ -48,6 +54,26 @@ export async function activate(context: ModuleContext): Promise<void> {
       visible: inModel,
       enabled: hasSketch,
       run: () => void document.addRevolve(),
+    }),
+    actions.register({
+      id: 'assemble.component',
+      label: 'Neues Bauteil',
+      icon: 'pi pi-th-large',
+      group: 'assemble',
+      order: 300,
+      visible: inModel,
+      run: () => void document.addComponent(),
+    }),
+    actions.register({
+      id: 'assemble.joint',
+      label: 'Gelenk (Ausrichten, Scharnier, Schiebe)',
+      icon: 'pi pi-link',
+      group: 'assemble',
+      order: 301,
+      shortcut: 'J',
+      visible: inModel,
+      enabled: () => document.design.value.components.size() > 0,
+      run: () => void document.addJoint(),
     }),
     actions.register({
       id: 'create.plane',
@@ -139,7 +165,7 @@ export async function activate(context: ModuleContext): Promise<void> {
       order: 200,
       shortcut: 'Delete',
       visible: inModel,
-      enabled: () => isFeature(document.selection.value) || isParameter(document.selection.value),
+      enabled: () => isFeature(document.selection.value) || isParameter(document.selection.value) || isComponent(document.selection.value),
       run: () => {
         const selected = document.selection.value
         if (selected) document.remove(selected)
