@@ -26,5 +26,6 @@ export const startupModules = [
   'ribo-sketcher', // Sketch mode: tools, constraints, dimensions
   'ribo-timeline', // Browser: parameters and feature timeline
   'ribo-properties', // Properties of the selected object
-  'ribo-io', // Open, save, STL/STEP export
+  'ribo-print', // 3D printing checks, material estimate, 3MF
+  'ribo-io', // Open, save, STL/STEP/3MF export
 ]

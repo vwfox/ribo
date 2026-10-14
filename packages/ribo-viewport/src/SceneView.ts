@@ -5,6 +5,7 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js'
 import {
   PLANE_BASIS,
+  type AnalysisLayer,
   type BodyMesh,
   type BuildPlan,
   type PlanCurve,
@@ -39,8 +40,6 @@ const VIEW_VECTORS: Record<ViewDirection, THREE.Vector3> = {
   right: new THREE.Vector3(1, 0, 0),
 }
 
-/** Size of the print bed shown as grid, in mm */
-const BED_SIZE = 220
 /** Pointer travel below which a press counts as a click, not a drag */
 const CLICK_TOLERANCE_PX = 4
 const CAMERA_ANIMATION_MS = 280
@@ -205,6 +204,9 @@ export class SceneView {
   private readonly pickers = new THREE.Group()
   private readonly hover = new THREE.Group()
   private readonly grid = new THREE.Group()
+  private readonly analysis = new THREE.Group()
+  private readonly analysisLayers = new Map<string, THREE.Mesh>()
+  private bed: Vec3 = [220, 220, 250]
   private readonly axes = new THREE.AxesHelper(25)
   private readonly resizeObserver: ResizeObserver
   private readonly raycaster = new THREE.Raycaster()
@@ -262,7 +264,7 @@ export class SceneView {
     this.ortho.add(sun.clone())
     this.scene.add(this.camera, this.ortho)
 
-    this.scene.add(this.grid, this.bodies, this.regions, this.sketches, this.pickers, this.ghost, this.picked, this.hover, this.axes)
+    this.scene.add(this.grid, this.bodies, this.regions, this.sketches, this.pickers, this.ghost, this.picked, this.hover, this.analysis, this.axes)
     this.buildGrid()
 
     const canvas = this.renderer.domElement
@@ -289,7 +291,7 @@ export class SceneView {
     this.input.removeEventListener('pointerup', this.onPointerUp)
     this.input.removeEventListener('wheel', this.onWheel)
     this.input.removeEventListener('contextmenu', this.onContextMenu)
-    for (const group of [this.bodies, this.sketches, this.regions, this.pickers, this.ghost, this.picked, this.hover, this.grid]) clearGroup(group)
+    for (const group of [this.bodies, this.sketches, this.regions, this.pickers, this.ghost, this.picked, this.hover, this.analysis, this.grid]) clearGroup(group)
     this.renderer.dispose()
     this.renderer.domElement.remove()
   }
@@ -924,15 +926,63 @@ export class SceneView {
 
   // ------------------------------------------------------------- plumbing
 
-  private buildGrid(): void {
-    const major = new THREE.GridHelper(BED_SIZE, BED_SIZE / 10, this.colors.grid, this.colors.grid)
-    const minor = new THREE.GridHelper(BED_SIZE, BED_SIZE / 2, this.colors.gridMinor, this.colors.gridMinor)
-    for (const grid of [minor, major]) {
-      grid.rotation.x = Math.PI / 2
-      ;(grid.material as THREE.Material).transparent = true
-      ;(grid.material as THREE.Material).opacity = grid === major ? 0.6 : 0.35
-      this.grid.add(grid)
+  /** Size of the printer's build volume; the grid and frame are centred on the origin */
+  setBed(size: Vec3): void {
+    this.bed = size
+    clearGroup(this.grid)
+    this.buildGrid()
+    this.requestRender()
+  }
+
+  setAnalysisLayer(layer: AnalysisLayer): void {
+    const old = this.analysisLayers.get(layer.id)
+    if (old) {
+      this.analysis.remove(old)
+      old.geometry.dispose()
+      ;(old.material as THREE.Material).dispose()
+      this.analysisLayers.delete(layer.id)
     }
+    if (layer.positions.length) {
+      const geometry = new THREE.BufferGeometry()
+      geometry.setAttribute('position', new THREE.BufferAttribute(layer.positions, 3))
+      const mesh = new THREE.Mesh(
+        geometry,
+        new THREE.MeshBasicMaterial({
+          color: layer.color,
+          transparent: true,
+          opacity: 0.75,
+          side: THREE.DoubleSide,
+          // Drawn on the body surface, a little in front of it
+          polygonOffset: true,
+          polygonOffsetFactor: -2,
+          polygonOffsetUnits: -2,
+        }),
+      )
+      mesh.renderOrder = 4
+      this.analysis.add(mesh)
+      this.analysisLayers.set(layer.id, mesh)
+    }
+    this.requestRender()
+  }
+
+  private buildGrid(): void {
+    const [bx, by, bz] = this.bed
+    const lines = (step: number) => {
+      const points: number[] = []
+      for (let x = -bx / 2; x <= bx / 2 + 1e-6; x += step) points.push(x, -by / 2, 0, x, by / 2, 0)
+      for (let y = -by / 2; y <= by / 2 + 1e-6; y += step) points.push(-bx / 2, y, 0, bx / 2, y, 0)
+      const geometry = new THREE.BufferGeometry()
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3))
+      return geometry
+    }
+    const minor = new THREE.LineSegments(lines(5), new THREE.LineBasicMaterial({ color: this.colors.gridMinor, transparent: true, opacity: 0.35 }))
+    const major = new THREE.LineSegments(lines(10), new THREE.LineBasicMaterial({ color: this.colors.grid, transparent: true, opacity: 0.6 }))
+    // The build volume as a frame
+    const frame = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(bx, by, bz).translate(0, 0, bz / 2)),
+      new THREE.LineBasicMaterial({ color: this.colors.grid, transparent: true, opacity: 0.25 }),
+    )
+    this.grid.add(minor, major, frame)
   }
 
   private resize(): void {

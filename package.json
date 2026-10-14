@@ -31,12 +31,14 @@
     "@emfts/core": "^0.3.0-next.4",
     "@primeuix/themes": "^2.0.3",
     "@salusoft89/planegcs": "1.2.0",
+    "fflate": "0.8.2",
     "primeicons": "^7.0.0",
     "primevue": "^4.5.5",
     "reflect-metadata": "^0.2.2",
     "replicad": "^1.1.0",
     "replicad-opencascadejs": "^1.1.0",
     "three": "^0.186.1",
+    "three-mesh-bvh": "0.9.15",
     "vue": "^3.5.44"
   },
   "devDependencies": {

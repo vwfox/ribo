@@ -58,7 +58,7 @@ export async function activate(context: ModuleContext): Promise<void> {
 
   async function exportAs(format: ExportFormat) {
     try {
-      const blob = await kernel.export(document.plan.value, format)
+      const blob = await kernel.export(document.plan.value, format, document.design.value.name || 'ribo')
       download(blob, `${fileStem(document.design.value.name)}.${format}`)
     } catch (error) {
       notifier.error(`Export fehlgeschlagen: ${(error as Error).message}`)
@@ -108,12 +108,21 @@ export async function activate(context: ModuleContext): Promise<void> {
       },
     }),
     actions.register({
-      id: 'file.exportStl',
-      label: 'Als STL exportieren (3D-Druck)',
+      id: 'file.export3mf',
+      label: 'Als 3MF exportieren (3D-Druck, empfohlen)',
       icon: 'pi pi-download',
       group: 'file',
       order: 3,
       shortcut: 'Ctrl+E',
+      enabled: hasBodies,
+      run: () => exportAs('3mf'),
+    }),
+    actions.register({
+      id: 'file.exportStl',
+      label: 'Als STL exportieren',
+      icon: 'pi pi-file-export',
+      group: 'file',
+      order: 4,
       enabled: hasBodies,
       run: () => exportAs('stl'),
     }),
@@ -122,7 +131,7 @@ export async function activate(context: ModuleContext): Promise<void> {
       label: 'Als STEP exportieren',
       icon: 'pi pi-share-alt',
       group: 'file',
-      order: 4,
+      order: 5,
       enabled: hasBodies,
       run: () => exportAs('step'),
     }),

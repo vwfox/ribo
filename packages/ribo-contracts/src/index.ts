@@ -34,7 +34,8 @@ export interface KernelService {
   /** Resolves once OpenCascade is loaded */
   readonly ready: Promise<void>
   build(plan: BuildPlan): Promise<BuildResult>
-  export(plan: BuildPlan, format: ExportFormat): Promise<Blob>
+  /** `title` names the part inside formats that carry names (3MF) */
+  export(plan: BuildPlan, format: ExportFormat, title?: string): Promise<Blob>
 }
 
 export const KERNEL = serviceId<KernelService>('ribo.kernel')
@@ -174,6 +175,17 @@ export interface ViewportService {
   pickPlane(): Promise<PlanePick | undefined>
   /** A component drawn over the viewport, e.g. the sketch editor */
   registerOverlay(component: Component): () => void
+  /** Size of the printer's build volume, mm; drawn as bed grid and frame */
+  setBed(size: Vec3): void
+  /** Coloured triangles over the bodies, e.g. overhangs; replaces the layer with the same id, empty positions remove it */
+  setAnalysisLayer(layer: AnalysisLayer): void
+}
+
+export interface AnalysisLayer {
+  id: string
+  /** Triangle corners, xyz, three per triangle */
+  positions: Float32Array
+  color: string
 }
 
 export const VIEWPORT = serviceId<ViewportService>('ribo.viewport')

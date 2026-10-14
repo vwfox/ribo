@@ -4,7 +4,7 @@ import type { BodyMesh, BuildPlan, ExportFormat, FeatureProblem } from 'ribo-con
 
 export type KernelRequest =
   | { id: number; type: 'build'; plan: BuildPlan }
-  | { id: number; type: 'export'; plan: BuildPlan; format: ExportFormat }
+  | { id: number; type: 'export'; plan: BuildPlan; format: ExportFormat; title?: string }
 
 export type KernelResponse =
   | { id: 0; type: 'ready' }

@@ -33,7 +33,7 @@ function handle(request: KernelRequest) {
   const { bodies, problems } = buildDesign(request.plan)
   try {
     if (request.type === 'export') {
-      post({ id: request.id, type: 'exported', blob: exportBodies(bodies, request.format) })
+      post({ id: request.id, type: 'exported', blob: exportBodies(bodies, request.format, request.title) })
       return
     }
     const meshes = bodies.map(meshBody)

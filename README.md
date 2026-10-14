@@ -14,7 +14,7 @@ npm run type-check
 npm run lint
 ```
 
-## Bedienung (Stand Schritt 3)
+## Bedienung (Stand Schritt 4)
 
 Der Ablauf orientiert sich an Fusion 360:
 
@@ -45,7 +45,12 @@ Der Ablauf orientiert sich an Fusion 360:
    - Doppelklick auf eine Skizze bearbeitet sie.
 10. **Parameter** treiben Bemaßungen und Abstände, z. B. `wand * 2 + 0.4`.
 11. **Rückgängig/Wiederholen** mit Strg+Z / Strg+Y.
-12. **Als STL exportieren** (Strg+E) für den Slicer, **STEP** für andere CAD-Programme.
+12. **3D-Druck** (Panel rechts):
+    - Gewicht, Filamentlänge und Volumen, geschätzt bei 100 % Füllung
+    - Prüft, ob das Teil aufs Druckbett passt (auch um 90° gedreht)
+    - Überhänge über dem eingestellten Winkel und Wände unter der Mindestwandstärke, beides im Ansichtsfenster markierbar
+    - Drucker-Vorlagen oder eigene Bettgröße, Material, Düse; gespeichert im Browser
+13. **Als 3MF exportieren** (Strg+E) für den Slicer, außerdem STL und **STEP** für andere CAD-Programme.
 
 Navigation in 3D: links drehen, rechts oder Mitte verschieben, das Rad zoomt zum Mauszeiger. In der Skizze verschieben die rechte und die mittlere Taste.
 
@@ -67,7 +72,8 @@ Der Aufbau folgt gene. Eine dünne Vite-App (`src/main.ts`) registriert die Shar
 | `ribo-sketcher` | Skizzenmodus: Werkzeuge, Abhängigkeiten, Bemaßungen, SVG-Overlay, Skizzenpalette |
 | `ribo-timeline` | Browser: Parameter und Zeitleiste mit Rollback, Extrudieren/Drehen, Undo/Redo |
 | `ribo-properties` | Eigenschaften des gewählten Objekts |
-| `ribo-io` | Neu, Öffnen, Speichern, Autosave, Export |
+| `ribo-print` | Druck-Checks (Bett, Überhänge, Wandstärke per BVH-Raycasting), Materialabschätzung, Export |
+| `ribo-io` | Neu, Öffnen, Speichern, Autosave, Export (3MF, STL, STEP) |
 
 Der Datenfluss sieht so aus:
 1. Der `Design`-Baum ist ein EMF-Modell.
@@ -103,4 +109,4 @@ npm run generate
 1. ~~Gerüst und Modell, Extrude/Revolve, Viewport, STL~~
 2. ~~Sketcher mit Constraints (PlaneGCS), Timeline mit Rollback, Undo/Redo~~
 3. ~~Abrunden, Fase und Schale mit Kanten- und Flächenauswahl im Ansichtsfenster~~
-4. 3MF-Export und Druck-Checks (Wanddicke, Überhänge, Bett-Passung)
+4. ~~3MF-Export und Druck-Checks (Wanddicke, Überhänge, Bett-Passung)~~

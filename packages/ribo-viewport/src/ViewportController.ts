@@ -1,5 +1,5 @@
 import { markRaw, ref, shallowReactive, shallowRef, type Component } from 'vue'
-import type { PlanePick, PlanPlane, SketchView, ViewportService } from 'ribo-contracts'
+import type { AnalysisLayer, PlanePick, PlanPlane, SketchView, Vec3, ViewportService } from 'ribo-contracts'
 import type { SceneView } from './SceneView'
 
 /**
@@ -12,10 +12,14 @@ export class ViewportController implements ViewportService {
   readonly overlays = shallowReactive<Component[]>([])
   readonly picking = ref(false)
   private scene: SceneView | undefined
+  private bed: Vec3 = [220, 220, 250]
+  private readonly layers = new Map<string, AnalysisLayer>()
   private pendingSketch: { plane: PlanPlane; offset: number } | undefined
 
   attach(scene: SceneView): void {
     this.scene = scene
+    scene.setBed(this.bed)
+    for (const layer of this.layers.values()) scene.setAnalysisLayer(layer)
     if (this.pendingSketch) scene.enterSketchView(this.pendingSketch.plane, this.pendingSketch.offset)
   }
 
@@ -53,6 +57,17 @@ export class ViewportController implements ViewportService {
 
   cancelPick(): void {
     this.scene?.cancelPick()
+  }
+
+  setBed(size: Vec3): void {
+    this.bed = size
+    this.scene?.setBed(size)
+  }
+
+  setAnalysisLayer(layer: AnalysisLayer): void {
+    if (layer.positions.length) this.layers.set(layer.id, layer)
+    else this.layers.delete(layer.id)
+    this.scene?.setAnalysisLayer(layer)
   }
 
   registerOverlay(component: Component): () => void {

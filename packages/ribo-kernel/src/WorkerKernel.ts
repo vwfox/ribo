@@ -39,8 +39,8 @@ export class WorkerKernel implements KernelService {
     return { bodies: response.bodies, problems: response.problems, duration: response.duration }
   }
 
-  async export(plan: BuildPlan, format: ExportFormat): Promise<Blob> {
-    const response = await this.request({ type: 'export', plan, format })
+  async export(plan: BuildPlan, format: ExportFormat, title?: string): Promise<Blob> {
+    const response = await this.request({ type: 'export', plan, format, title })
     if (response.type !== 'exported') throw new Error(`Unexpected kernel response '${response.type}'`)
     return response.blob
   }

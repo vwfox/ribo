@@ -142,4 +142,4 @@ export interface BuildResult {
   duration: number
 }
 
-export type ExportFormat = 'stl' | 'step'
+export type ExportFormat = 'stl' | 'step' | '3mf'

@@ -33,6 +33,7 @@ import {
   type PlanRegion,
   type Vec2,
 } from 'ribo-contracts/geometry'
+import { build3mf } from './threemf'
 
 type SketchFeature = Extract<PlanFeature, { kind: 'sketch' }>
 type ProfileFeature = Extract<PlanFeature, { kind: 'extrude' | 'revolve' }>
@@ -369,11 +370,22 @@ export function meshBody(body: Shape3D): BodyMesh {
   }
 }
 
-export function exportBodies(bodies: Shape3D[], format: 'stl' | 'step'): Blob {
+/** Finer than the display mesh: exports go to the slicer */
+const EXPORT_MESH = { tolerance: 0.01, angularTolerance: 5 }
+
+export function exportBodies(bodies: Shape3D[], format: 'stl' | 'step' | '3mf', title = 'ribo'): Blob {
   if (bodies.length === 0) throw new Error('Es gibt keinen Körper zum Exportieren')
+  if (format === '3mf') {
+    const meshes = bodies.map((body, i) => {
+      const mesh = body.mesh(EXPORT_MESH)
+      return { name: bodies.length === 1 ? title : `${title} ${i + 1}`, vertices: mesh.vertices, triangles: mesh.triangles }
+    })
+    const bytes = build3mf(title, meshes)
+    return new Blob([bytes.buffer as ArrayBuffer], { type: 'model/3mf' })
+  }
   const shape: AnyShape = bodies.length === 1 ? bodies[0]! : makeCompound(bodies)
   try {
-    return format === 'stl' ? (shape as Shape3D).blobSTL({ ...MESH_OPTIONS, binary: true }) : (shape as Shape3D).blobSTEP()
+    return format === 'stl' ? (shape as Shape3D).blobSTL({ ...EXPORT_MESH, binary: true }) : (shape as Shape3D).blobSTEP()
   } finally {
     if (shape !== bodies[0]) shape.delete()
   }
