@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<genconfig:GenConfig xmlns:xmi="http://www.omg.org/XMI" xmi:version="2.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:genconfig="http://www.emfts.org/genconfig/1.0">
+  <ecorePackage href="http://ribo/design/1.0#/"/>
+  <generation mode="emf" outputDir="packages/ribo-model/src/generated" fileExtension=".ts"/>
+  <package prefix="Ribo" basePackage="ribo" generateFactory="true" generatePackage="true" generateIndex="true"/>
+  <classDefaults generateInterface="true" generateImpl="true" rootExtendsClass="BasicEObject" rootExtendsInterface="EObject"/>
+  <featureDefaults notify="true" property="editable"/>
+</genconfig:GenConfig>

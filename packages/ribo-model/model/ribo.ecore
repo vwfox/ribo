@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ecore:EPackage xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:ecore="http://www.eclipse.org/emf/2002/Ecore" name="ribo" nsURI="http://ribo/design/1.0"
+    nsPrefix="ribo">
+
+  <!-- Design (root) -->
+  <eClassifiers xsi:type="ecore:EClass" name="Design">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="Root of a part design. The features form the timeline; the kernel rebuilds the geometry by replaying them in order. All lengths are millimetres, all angles degrees."/>
+    </eAnnotations>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="name" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="parameters" upperBound="-1" eType="#//Parameter" containment="true"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="features" upperBound="-1" eType="#//Feature" containment="true"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="rollback" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EInt" defaultValueLiteral="-1">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Timeline marker: only features before this index are built. -1 builds all."/>
+      </eAnnotations>
+    </eStructuralFeatures>
+  </eClassifiers>
+
+  <!-- Parameter -->
+  <eClassifiers xsi:type="ecore:EClass" name="Parameter">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="A named user parameter. Its expression may use numbers, units (mm, cm, m, in, deg), + - * / ( ) and the names of earlier parameters."/>
+    </eAnnotations>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="name" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="expression" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="0"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="comment" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+  </eClassifiers>
+
+  <!-- Feature (abstract) -->
+  <eClassifiers xsi:type="ecore:EClass" name="Feature" abstract="true">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="One step of the timeline."/>
+    </eAnnotations>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="name" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="suppressed" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" defaultValueLiteral="false"/>
+  </eClassifiers>
+
+  <!-- Sketch -->
+  <eClassifiers xsi:type="ecore:EClass" name="Sketch" eSuperTypes="#//Feature">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="Free 2D geometry on an origin plane, held in place by constraints and dimensions. Closed loops of non-construction curves form the profiles."/>
+    </eAnnotations>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="plane" lowerBound="1" eType="#//SketchPlane" defaultValueLiteral="XY"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="offset" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="0"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="points" upperBound="-1" eType="#//SketchPoint" containment="true"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="curves" upperBound="-1" eType="#//SketchCurve" containment="true"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="constraints" upperBound="-1" eType="#//SketchConstraint" containment="true"/>
+  </eClassifiers>
+
+  <eClassifiers xsi:type="ecore:EEnum" name="SketchPlane">
+    <eLiterals name="XY"/>
+    <eLiterals name="XZ" value="1"/>
+    <eLiterals name="YZ" value="2"/>
+  </eClassifiers>
+
+  <!-- Sketch geometry -->
+  <eClassifiers xsi:type="ecore:EClass" name="SketchPoint">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="A point in sketch coordinates. Curves that meet share their point. The origin point is fixed at (0, 0)."/>
+    </eAnnotations>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="x" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="y" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="origin" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" defaultValueLiteral="false"/>
+  </eClassifiers>
+
+  <eClassifiers xsi:type="ecore:EClass" name="SketchCurve" abstract="true">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="construction" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" defaultValueLiteral="false"/>
+  </eClassifiers>
+
+  <eClassifiers xsi:type="ecore:EClass" name="SketchLine" eSuperTypes="#//SketchCurve">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="start" lowerBound="1" eType="#//SketchPoint"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="end" lowerBound="1" eType="#//SketchPoint"/>
+  </eClassifiers>
+
+  <eClassifiers xsi:type="ecore:EClass" name="SketchCircle" eSuperTypes="#//SketchCurve">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="center" lowerBound="1" eType="#//SketchPoint"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="radius" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="5"/>
+  </eClassifiers>
+
+  <eClassifiers xsi:type="ecore:EClass" name="SketchArc" eSuperTypes="#//SketchCurve">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="Circular arc, counter-clockwise from start to end around center."/>
+    </eAnnotations>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="center" lowerBound="1" eType="#//SketchPoint"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="start" lowerBound="1" eType="#//SketchPoint"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="end" lowerBound="1" eType="#//SketchPoint"/>
+  </eClassifiers>
+
+  <!-- Constraints and dimensions -->
+  <eClassifiers xsi:type="ecore:EClass" name="SketchConstraint" abstract="true">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="Relation between points and curves, in the order the kind defines."/>
+    </eAnnotations>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="points" upperBound="-1" eType="#//SketchPoint"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="curves" upperBound="-1" eType="#//SketchCurve"/>
+  </eClassifiers>
+
+  <eClassifiers xsi:type="ecore:EClass" name="GeometricConstraint" eSuperTypes="#//SketchConstraint">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="kind" lowerBound="1" eType="#//ConstraintKind" defaultValueLiteral="Coincident"/>
+  </eClassifiers>
+
+  <eClassifiers xsi:type="ecore:EEnum" name="ConstraintKind">
+    <eLiterals name="Coincident"/>
+    <eLiterals name="Horizontal" value="1"/>
+    <eLiterals name="Vertical" value="2"/>
+    <eLiterals name="Parallel" value="3"/>
+    <eLiterals name="Perpendicular" value="4"/>
+    <eLiterals name="Tangent" value="5"/>
+    <eLiterals name="Equal" value="6"/>
+    <eLiterals name="Midpoint" value="7"/>
+    <eLiterals name="Fix" value="8"/>
+    <eLiterals name="Symmetric" value="9"/>
+    <eLiterals name="Concentric" value="10"/>
+    <eLiterals name="Collinear" value="11"/>
+  </eClassifiers>
+
+  <eClassifiers xsi:type="ecore:EClass" name="Dimension" eSuperTypes="#//SketchConstraint">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="Driving dimension. The label sits at (labelX, labelY) in sketch coordinates."/>
+    </eAnnotations>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="kind" lowerBound="1" eType="#//DimensionKind" defaultValueLiteral="Distance"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="expression" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="10"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="labelX" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="labelY" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0"/>
+  </eClassifiers>
+
+  <eClassifiers xsi:type="ecore:EEnum" name="DimensionKind">
+    <eLiterals name="Distance"/>
+    <eLiterals name="HorizontalDistance" value="1"/>
+    <eLiterals name="VerticalDistance" value="2"/>
+    <eLiterals name="Radius" value="3"/>
+    <eLiterals name="Diameter" value="4"/>
+    <eLiterals name="Angle" value="5"/>
+  </eClassifiers>
+
+  <!-- Solid features -->
+  <eClassifiers xsi:type="ecore:EClass" name="ProfileFeature" abstract="true" eSuperTypes="#//Feature">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="A feature that turns sketch profiles into a solid and combines it with the existing bodies. Without selected profiles, the outer profiles of the sketch are used (regions at even nesting depth)."/>
+    </eAnnotations>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="sketch" eType="#//Sketch"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="profiles" upperBound="-1" eType="#//ProfileSelection" containment="true"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="operation" eType="#//FeatureOperation" defaultValueLiteral="NewBody"/>
+  </eClassifiers>
+
+  <eClassifiers xsi:type="ecore:EClass" name="ProfileSelection">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="A picked profile, remembered by a point inside it (sketch coordinates). The profile containing the point is used."/>
+    </eAnnotations>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="u" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="v" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0"/>
+  </eClassifiers>
+
+  <eClassifiers xsi:type="ecore:EEnum" name="FeatureOperation">
+    <eLiterals name="NewBody"/>
+    <eLiterals name="Join" value="1"/>
+    <eLiterals name="Cut" value="2"/>
+    <eLiterals name="Intersect" value="3"/>
+  </eClassifiers>
+
+  <eClassifiers xsi:type="ecore:EClass" name="Extrude" eSuperTypes="#//ProfileFeature">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="distance" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="10"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="direction" eType="#//ExtentDirection" defaultValueLiteral="OneSide"/>
+  </eClassifiers>
+
+  <eClassifiers xsi:type="ecore:EEnum" name="ExtentDirection">
+    <eLiterals name="OneSide"/>
+    <eLiterals name="Reversed" value="1"/>
+    <eLiterals name="Symmetric" value="2"/>
+  </eClassifiers>
+
+  <eClassifiers xsi:type="ecore:EClass" name="Revolve" eSuperTypes="#//ProfileFeature">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="Revolves the profiles around axisLine, or without one around a sketch axis through the sketch origin."/>
+    </eAnnotations>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="axisLine" eType="#//SketchLine"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="axis" eType="#//SketchAxis" defaultValueLiteral="Y"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="angle" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="360"/>
+  </eClassifiers>
+
+  <eClassifiers xsi:type="ecore:EEnum" name="SketchAxis">
+    <eLiterals name="X"/>
+    <eLiterals name="Y" value="1"/>
+  </eClassifiers>
+
+</ecore:EPackage>

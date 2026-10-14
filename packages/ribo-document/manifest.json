@@ -1,0 +1,34 @@
+{
+  "id": "ribo-document",
+  "name": "ribo Document",
+  "version": "0.0.1",
+  "description": "The design being edited: expressions, sketch solving (PlaneGCS), undo/redo, rebuild through the kernel",
+  "entry": "src/index.ts",
+  "sharedDependencies": [
+    {
+      "id": "vue",
+      "versionRange": "^3.5.0"
+    },
+    {
+      "id": "@emfts/core",
+      "versionRange": "^0.3.0-next.4"
+    },
+    {
+      "id": "@eclipse-daanse/tsm",
+      "versionRange": "^0.1.0-next.1"
+    }
+  ],
+  "dependencies": [
+    "ribo-kernel"
+  ],
+  "provides": [
+    {
+      "id": "ribo.document"
+    }
+  ],
+  "requiresService": [
+    {
+      "id": "ribo.kernel"
+    }
+  ]
+}

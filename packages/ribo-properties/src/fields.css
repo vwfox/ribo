@@ -1,0 +1,18 @@
+.ribo-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.ribo-field-label {
+  font-size: 0.75rem;
+  color: var(--p-text-muted-color);
+}
+
+.ribo-field-error {
+  color: var(--p-red-500);
+}
+
+.ribo-field-hint {
+  color: var(--p-text-muted-color);
+}

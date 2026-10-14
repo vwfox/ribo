@@ -1,0 +1,48 @@
+{
+  "id": "ribo-timeline",
+  "name": "ribo Browser",
+  "version": "0.0.1",
+  "description": "Parameters and feature timeline with rollback; create, undo and redo actions",
+  "entry": "src/index.ts",
+  "sharedDependencies": [
+    {
+      "id": "vue",
+      "versionRange": "^3.5.0"
+    },
+    {
+      "id": "primevue",
+      "versionRange": "^4.5.0"
+    },
+    {
+      "id": "@emfts/core",
+      "versionRange": "^0.3.0-next.4"
+    },
+    {
+      "id": "@eclipse-daanse/tsm",
+      "versionRange": "^0.1.0-next.1"
+    }
+  ],
+  "dependencies": [
+    "ribo-app",
+    "ribo-document",
+    "ribo-viewport"
+  ],
+  "requiresService": [
+    {
+      "id": "ribo.registry.panels"
+    },
+    {
+      "id": "ribo.registry.actions"
+    },
+    {
+      "id": "ribo.document"
+    },
+    {
+      "id": "ribo.viewport"
+    },
+    {
+      "id": "ribo.sketcher",
+      "optional": true
+    }
+  ]
+}

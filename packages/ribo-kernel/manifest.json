@@ -1,0 +1,11 @@
+{
+  "id": "ribo-kernel",
+  "name": "ribo Geometry Kernel",
+  "version": "0.0.1",
+  "description": "OpenCascade (via replicad) in a web worker: build plan -> solids -> meshes and STL/STEP",
+  "entry": "src/index.ts",
+  "sharedDependencies": [
+    { "id": "@eclipse-daanse/tsm", "versionRange": "^0.1.0-next.1" }
+  ],
+  "provides": [{ "id": "ribo.kernel" }]
+}

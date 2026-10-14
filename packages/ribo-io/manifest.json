@@ -1,0 +1,18 @@
+{
+  "id": "ribo-io",
+  "name": "ribo Files",
+  "version": "0.0.1",
+  "description": "New, open, save (emfts JSON), autosave in the browser, STL and STEP export",
+  "entry": "src/index.ts",
+  "sharedDependencies": [
+    { "id": "vue", "versionRange": "^3.5.0" },
+    { "id": "@eclipse-daanse/tsm", "versionRange": "^0.1.0-next.1" }
+  ],
+  "dependencies": ["ribo-app", "ribo-document", "ribo-kernel"],
+  "requiresService": [
+    { "id": "ribo.registry.actions" },
+    { "id": "ribo.document" },
+    { "id": "ribo.kernel" },
+    { "id": "ribo.notifier" }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "name": "ribo",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Parametrisches CAD fuer den 3D-Druck auf Basis von EMFTS und TSM",
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "run-p type-check \"build-only {@}\" --",
+    "build-only": "vite build",
+    "preview": "vite preview",
+    "type-check": "vue-tsc --build",
+    "test:unit": "vitest",
+    "lint": "eslint . --fix --cache",
+    "generate": "emfts-codegen generate -m packages/ribo-model/model/ribo.ecore -c packages/ribo-model/model/ribo.genconfig -o packages/ribo-model/src/generated"
+  },
+  "overrides": {
+    "@emfts/core": "^0.3.0-next.4",
+    "@emfts/codegen": {
+      "@emfts/core": "0.2.0-next.2"
+    }
+  },
+  "dependencies": {
+    "@eclipse-daanse/tsm": "^0.1.0-next.1",
+    "@emfts/core": "^0.3.0-next.4",
+    "@primeuix/themes": "^2.0.3",
+    "@salusoft89/planegcs": "1.2.0",
+    "primeicons": "^7.0.0",
+    "primevue": "^4.5.5",
+    "reflect-metadata": "^0.2.2",
+    "replicad": "^1.1.0",
+    "replicad-opencascadejs": "^1.1.0",
+    "three": "^0.186.1",
+    "vue": "^3.5.44"
+  },
+  "devDependencies": {
+    "@emfts/codegen": "0.0.2-next.4",
+    "@tsconfig/node24": "^24.0.5",
+    "@types/jsdom": "^27.0.0",
+    "@types/node": "^24.19.2",
+    "@types/three": "^0.186.0",
+    "@vitejs/plugin-vue": "^6.0.10",
+    "@vitest/eslint-plugin": "^1.6.27",
+    "@vue/eslint-config-typescript": "^14.9.0",
+    "@vue/test-utils": "^2.5.1",
+    "@vue/tsconfig": "^0.8.1",
+    "eslint": "^9.39.5",
+    "eslint-plugin-vue": "~10.6.2",
+    "jiti": "^2.7.0",
+    "jsdom": "^27.4.0",
+    "npm-run-all2": "^8.0.4",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.7",
+    "vitest": "^4.1.11",
+    "vue-tsc": "^3.3.13"
+  }
+}

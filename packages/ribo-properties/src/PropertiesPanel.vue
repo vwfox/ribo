@@ -1,0 +1,320 @@
+<script setup lang="ts">
+import { computed } from 'vue'
+import Button from 'primevue/button'
+import InputText from 'primevue/inputtext'
+import Select from 'primevue/select'
+import SelectButton from 'primevue/selectbutton'
+import type { DocumentService } from 'ribo-contracts'
+import {
+  ExtentDirection,
+  FeatureOperation,
+  SketchAxis,
+  SketchPlane,
+  isExtrude,
+  isLine,
+  isParameter,
+  isProfileFeature,
+  isRevolve,
+  isSketch,
+  type Sketch,
+  type SketchLine,
+} from 'ribo-model'
+import ExpressionField from './ExpressionField.vue'
+import './fields.css'
+
+const props = defineProps<{ document: DocumentService; editSketch: (sketch: Sketch) => void }>()
+
+const selected = computed(() => props.document.selection.value)
+const design = computed(() => props.document.design.value)
+
+const PLANES = [
+  { label: 'XY (oben)', value: SketchPlane.XY },
+  { label: 'XZ (vorne)', value: SketchPlane.XZ },
+  { label: 'YZ (rechts)', value: SketchPlane.YZ },
+]
+const OPERATIONS = [
+  { label: 'Neuer Körper', value: FeatureOperation.NewBody },
+  { label: 'Verbinden', value: FeatureOperation.Join },
+  { label: 'Ausschneiden', value: FeatureOperation.Cut },
+  { label: 'Schnittmenge', value: FeatureOperation.Intersect },
+]
+const DIRECTIONS = [
+  { label: 'Eine Seite', value: ExtentDirection.OneSide },
+  { label: 'Umgekehrt', value: ExtentDirection.Reversed },
+  { label: 'Symmetrisch', value: ExtentDirection.Symmetric },
+]
+
+const parameterValue = computed(() => {
+  void props.document.revision.value
+  const parameter = selected.value
+  if (!isParameter(parameter)) return undefined
+  return props.document.parameterValues().get(parameter)
+})
+
+/*
+ * Options carry indexes, not EObjects: PrimeVue compares option values deeply,
+ * and an EObject's containment graph is cyclic.
+ */
+
+/** Sketches the selected feature may use: the ones before it in the timeline */
+const sketches = computed(() => {
+  void props.document.revision.value
+  const feature = selected.value
+  return isProfileFeature(feature) ? props.document.sketchesBefore(feature) : []
+})
+const sketchOptions = computed(() => sketches.value.map((sketch, index) => ({ label: sketch.name, value: index })))
+const sketchIndex = computed(() => {
+  void props.document.revision.value
+  const feature = selected.value
+  if (!isProfileFeature(feature) || !feature.sketch) return undefined
+  const index = sketches.value.indexOf(feature.sketch)
+  return index < 0 ? undefined : index
+})
+
+function setSketch(index: number | undefined) {
+  const feature = selected.value
+  const sketch = index === undefined ? undefined : sketches.value[index]
+  if (!isProfileFeature(feature) || feature.sketch === sketch) return
+  props.document.history.record('Skizze wählen', () => {
+    feature.profiles.clear()
+    if (isRevolve(feature)) feature.axisLine = undefined as never
+    feature.sketch = sketch as Sketch
+  })
+}
+
+const profileInfo = computed(() => {
+  void props.document.revision.value
+  const feature = selected.value
+  if (!isProfileFeature(feature) || !feature.sketch) return undefined
+  const index = design.value.features.indexOf(feature)
+  const planned = props.document.plan.value.features.find((f) => f.kind !== 'sketch' && f.index === index)
+  const regions = props.document.sketchPlan(feature.sketch)?.regions.length ?? 0
+  return {
+    automatic: feature.profiles.size() === 0,
+    used: planned && planned.kind !== 'sketch' ? planned.profiles.length : 0,
+    regions,
+  }
+})
+
+function resetProfiles() {
+  const feature = selected.value
+  if (isProfileFeature(feature)) props.document.history.record('Profile automatisch', () => feature.profiles.clear())
+}
+
+/** Axis options of a revolve: the sketch axes and the lines of its sketch */
+const axisLines = computed(() => {
+  void props.document.revision.value
+  const feature = selected.value
+  if (!isRevolve(feature) || !feature.sketch) return []
+  return feature.sketch.curves.toArray().filter((c): c is SketchLine => isLine(c))
+})
+const axisOptions = computed(() => [
+  { label: 'X-Achse der Skizze', value: 'X' },
+  { label: 'Y-Achse der Skizze', value: 'Y' },
+  ...axisLines.value.map((line, i) => ({
+    label: `${line.construction ? 'Hilfslinie' : 'Linie'} ${i + 1} (${Math.round(line.start.x)}, ${Math.round(line.start.y)} → ${Math.round(line.end.x)}, ${Math.round(line.end.y)})`,
+    value: `line:${i}`,
+  })),
+])
+const axisValue = computed(() => {
+  void props.document.revision.value
+  const feature = selected.value
+  if (!isRevolve(feature)) return undefined
+  if (feature.axisLine) return `line:${axisLines.value.indexOf(feature.axisLine)}`
+  return feature.axis ?? 'Y'
+})
+
+function setAxis(value: string) {
+  const feature = selected.value
+  if (!isRevolve(feature)) return
+  props.document.history.record('Drehachse', () => {
+    if (value.startsWith('line:')) {
+      feature.axisLine = axisLines.value[Number(value.slice(5))]!
+    } else {
+      feature.axisLine = undefined as never
+      feature.axis = value as SketchAxis
+    }
+  })
+}
+</script>
+
+<template>
+  <!-- Reading the revision here re-renders the panel on every model change -->
+  <div class="ribo-properties" :data-revision="document.revision.value">
+    <!-- Nothing selected: the design itself -->
+    <template v-if="!selected">
+      <label class="ribo-field">
+        <span class="ribo-field-label">Name des Designs</span>
+        <InputText :model-value="design.name" size="small" fluid @update:model-value="design.name = $event ?? ''" />
+      </label>
+      <p class="ribo-hint">
+        Starte mit <strong>Skizze erstellen</strong> (S): Ebene oder ebene Fläche anklicken, zeichnen, bemaßen, Skizze beenden. Dann
+        <strong>Extrudieren</strong> (E) und die Profile im Ansichtsfenster anklicken. Alle Maße sind Ausdrücke in mm bzw. Grad und können
+        Parameter verwenden, z.&nbsp;B. <code>wand * 2 + 0.4</code>.
+      </p>
+    </template>
+
+    <!-- Parameter -->
+    <template v-else-if="isParameter(selected)">
+      <label class="ribo-field">
+        <span class="ribo-field-label">Name</span>
+        <InputText :model-value="selected.name" size="small" fluid spellcheck="false" @update:model-value="selected.name = $event ?? ''" />
+      </label>
+      <label class="ribo-field">
+        <span class="ribo-field-label">Ausdruck</span>
+        <InputText
+          :model-value="selected.expression"
+          :invalid="parameterValue instanceof Error"
+          size="small"
+          fluid
+          spellcheck="false"
+          @update:model-value="selected.expression = $event ?? ''"
+        />
+        <small v-if="parameterValue instanceof Error" class="ribo-field-error">{{ parameterValue.message }}</small>
+        <small v-else-if="parameterValue !== undefined" class="ribo-field-hint">= {{ Number(parameterValue.toFixed(3)) }}</small>
+      </label>
+      <label class="ribo-field">
+        <span class="ribo-field-label">Kommentar</span>
+        <InputText :model-value="selected.comment" size="small" fluid @update:model-value="selected.comment = $event ?? ''" />
+      </label>
+    </template>
+
+    <!-- Sketch -->
+    <template v-else-if="isSketch(selected)">
+      <label class="ribo-field">
+        <span class="ribo-field-label">Name</span>
+        <InputText :model-value="selected.name" size="small" fluid @update:model-value="selected.name = $event ?? ''" />
+      </label>
+      <Button label="Skizze bearbeiten" icon="pi pi-pencil" size="small" @click="editSketch(selected)" />
+      <div class="ribo-field">
+        <span class="ribo-field-label">Ebene</span>
+        <Select
+          :model-value="selected.plane"
+          :options="PLANES"
+          option-label="label"
+          option-value="value"
+          size="small"
+          fluid
+          @update:model-value="selected.plane = $event"
+        />
+      </div>
+      <ExpressionField v-model="selected.offset" label="Versatz" unit="mm" :document="document" />
+      <p class="ribo-hint">
+        {{ selected.curves.size() }} Kurven · {{ document.sketchPlan(selected)?.regions.length ?? 0 }} geschlossene Profile
+      </p>
+      <div class="ribo-button-row">
+        <Button label="Extrudieren" icon="pi pi-box" size="small" severity="secondary" @click="document.addExtrude(selected)" />
+        <Button label="Drehen" icon="pi pi-sync" size="small" severity="secondary" @click="document.addRevolve(selected)" />
+      </div>
+    </template>
+
+    <!-- Extrude / Revolve -->
+    <template v-else-if="isProfileFeature(selected)">
+      <label class="ribo-field">
+        <span class="ribo-field-label">Name</span>
+        <InputText :model-value="selected.name" size="small" fluid @update:model-value="selected.name = $event ?? ''" />
+      </label>
+      <div class="ribo-field">
+        <span class="ribo-field-label">Skizze</span>
+        <Select
+          :model-value="sketchIndex"
+          :options="sketchOptions"
+          option-label="label"
+          option-value="value"
+          placeholder="Skizze wählen"
+          size="small"
+          fluid
+          @update:model-value="setSketch"
+        />
+      </div>
+      <div v-if="profileInfo" class="ribo-field">
+        <span class="ribo-field-label">Profile</span>
+        <div class="ribo-profile-info">
+          <span v-if="profileInfo.automatic">Automatisch: {{ profileInfo.used }} von {{ profileInfo.regions }} (äußere Profile)</span>
+          <span v-else>{{ profileInfo.used }} von {{ profileInfo.regions }} angeklickt</span>
+          <Button v-if="!profileInfo.automatic" label="Automatisch" size="small" text @click="resetProfiles" />
+        </div>
+        <small class="ribo-field-hint">Im Ansichtsfenster Profile anklicken, um sie zu wählen</small>
+      </div>
+      <div class="ribo-field">
+        <span class="ribo-field-label">Vorgang</span>
+        <Select
+          :model-value="selected.operation"
+          :options="OPERATIONS"
+          option-label="label"
+          option-value="value"
+          size="small"
+          fluid
+          @update:model-value="selected.operation = $event"
+        />
+      </div>
+      <template v-if="isExtrude(selected)">
+        <ExpressionField v-model="selected.distance" label="Abstand" unit="mm" :document="document" />
+        <div class="ribo-field">
+          <span class="ribo-field-label">Richtung</span>
+          <SelectButton
+            :model-value="selected.direction"
+            :options="DIRECTIONS"
+            option-label="label"
+            option-value="value"
+            :allow-empty="false"
+            size="small"
+            @update:model-value="selected.direction = $event"
+          />
+        </div>
+      </template>
+      <template v-else-if="isRevolve(selected)">
+        <div class="ribo-field">
+          <span class="ribo-field-label">Achse</span>
+          <Select
+            :model-value="axisValue"
+            :options="axisOptions"
+            option-label="label"
+            option-value="value"
+            size="small"
+            fluid
+            @update:model-value="setAxis"
+          />
+        </div>
+        <ExpressionField v-model="selected.angle" label="Winkel" unit="°" :document="document" />
+      </template>
+    </template>
+
+    <div v-if="selected" class="ribo-actions">
+      <Button label="Löschen" icon="pi pi-trash" size="small" severity="danger" text @click="document.remove(selected)" />
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.ribo-properties {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ribo-button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.ribo-profile-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.ribo-hint {
+  margin: 0;
+  color: var(--p-text-muted-color);
+  line-height: 1.5;
+}
+
+.ribo-actions {
+  border-top: 1px solid var(--p-content-border-color);
+  padding-top: 0.5rem;
+}
+</style>
