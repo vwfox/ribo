@@ -140,6 +140,7 @@ const curves = computed(() => {
     curve,
     d: curvePath(curve),
     construction: curve.construction ?? false,
+    reference: curve.reference ?? false,
     selected: selection.has(curve) || picked.value.has(curve),
     hover: hover.value === curve,
     free: free.value.curves.has(curve),
@@ -426,7 +427,7 @@ const hintText = computed(() => {
         v-for="(c, i) in curves"
         :key="'c' + i"
         class="curve"
-        :class="{ construction: c.construction, selected: c.selected, hover: c.hover, free: c.free }"
+        :class="{ construction: c.construction, reference: c.reference, selected: c.selected, hover: c.hover, free: c.free }"
         :d="c.d"
       />
 
@@ -519,6 +520,7 @@ const hintText = computed(() => {
   --sk-defined: #0f172a;
   --sk-free: #2563eb;
   --sk-construction: #ea580c;
+  --sk-reference: #9333ea;
   --sk-selected: #0ea5e9;
   --sk-dimension: #334155;
   --sk-grid: rgb(100 116 139 / 0.16);
@@ -566,6 +568,9 @@ const hintText = computed(() => {
 }
 .curve.free {
   stroke: var(--sk-free);
+}
+.curve.reference {
+  stroke: var(--sk-reference);
 }
 .curve.construction {
   stroke: var(--sk-construction);
@@ -750,6 +755,7 @@ html.dark-theme .ribo-sketch-overlay {
   --sk-defined: #f1f5f9;
   --sk-free: #60a5fa;
   --sk-construction: #fb923c;
+  --sk-reference: #c084fc;
   --sk-selected: #38bdf8;
   --sk-dimension: #cbd5e1;
   --sk-grid: rgb(148 163 184 / 0.12);

@@ -13,5 +13,6 @@ import type { EObject, BasicEObject, EClass, EStructuralFeature } from '@emfts/c
  */
 export interface SketchCurve extends EObject {
   construction: boolean;
+  reference: boolean;
 
 }

@@ -18,8 +18,8 @@ import { RiboPackage } from './RiboPackage.js';
  */
 export class SketchLineImpl extends SketchCurveImpl implements SketchLine {
   // Feature ID Constants (eLiterals)
-  static readonly START: number = 1;
-  static readonly END: number = 2;
+  static readonly START: number = 2;
+  static readonly END: number = 3;
 
   // Private fields
   private _start?: SketchPoint;

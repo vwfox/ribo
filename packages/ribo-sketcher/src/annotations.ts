@@ -281,6 +281,8 @@ export function layoutGlyphs(view: SketchView, sketch: Sketch): GlyphLayout[] {
     const points = constraint.points.toArray()
     // A point on a curve shows as the point itself; no glyph needed
     if (constraint.kind === ConstraintKind.Coincident && curves.length === 1) continue
+    // Projected geometry is fixed by nature, its colour already says so
+    if (constraint.kind === ConstraintKind.Fix && curves.length > 0 && curves.every((c) => c.reference)) continue
     if (curves.length > 0 && constraint.kind !== ConstraintKind.Midpoint) {
       for (const curve of curves) {
         const anchor = glyphAnchor(view, curve)

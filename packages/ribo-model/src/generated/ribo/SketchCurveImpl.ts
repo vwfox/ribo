@@ -17,9 +17,11 @@ import { RiboPackage } from './RiboPackage.js';
 export abstract class SketchCurveImpl extends BasicEObject implements SketchCurve {
   // Feature ID Constants (eLiterals)
   static readonly CONSTRUCTION: number = 0;
+  static readonly REFERENCE: number = 1;
 
   // Private fields
   private _construction: boolean = false;
+  private _reference: boolean = false;
 
   /**
    * Returns the EClass of this object
@@ -53,6 +55,30 @@ export abstract class SketchCurveImpl extends BasicEObject implements SketchCurv
     }
   }
 
+  get reference(): boolean {
+    return this._reference!;
+  }
+
+  set reference(value: boolean) {
+    const oldValue = this._reference;
+    this._reference = value;
+    if (this.eDeliver()) {
+      this.eNotify({
+        getNotifier: () => this,
+        getEventType: () => 1, // SET
+        getFeature: () => this.eClass().getEStructuralFeature(SketchCurveImpl.REFERENCE),
+        getOldValue: () => oldValue,
+        getNewValue: () => value,
+        getPosition: () => -1,
+        wasSet: () => true,
+        isTouch: () => false,
+        isReset: () => false,
+        getFeatureID: () => SketchCurveImpl.REFERENCE,
+        merge: () => false
+      });
+    }
+  }
+
   // Reflective API
 
   /**
@@ -63,6 +89,8 @@ export abstract class SketchCurveImpl extends BasicEObject implements SketchCurv
     switch (featureID) {
       case SketchCurveImpl.CONSTRUCTION:
         return this.construction;
+      case SketchCurveImpl.REFERENCE:
+        return this.reference;
       default:
         return super.eGet(feature);
     }
@@ -78,6 +106,10 @@ export abstract class SketchCurveImpl extends BasicEObject implements SketchCurv
         this.construction = newValue as boolean;
         super.eSet(feature, newValue);
         break;
+      case SketchCurveImpl.REFERENCE:
+        this.reference = newValue as boolean;
+        super.eSet(feature, newValue);
+        break;
       default:
         super.eSet(feature, newValue);
     }
@@ -91,6 +123,8 @@ export abstract class SketchCurveImpl extends BasicEObject implements SketchCurv
     switch (featureID) {
       case SketchCurveImpl.CONSTRUCTION:
         return this._construction !== false;
+      case SketchCurveImpl.REFERENCE:
+        return this._reference !== false;
       default:
         return super.eIsSet(feature);
     }
@@ -104,6 +138,9 @@ export abstract class SketchCurveImpl extends BasicEObject implements SketchCurv
     switch (featureID) {
       case SketchCurveImpl.CONSTRUCTION:
         this._construction = false;
+        return;
+      case SketchCurveImpl.REFERENCE:
+        this._reference = false;
         return;
       default:
         super.eUnset(feature);

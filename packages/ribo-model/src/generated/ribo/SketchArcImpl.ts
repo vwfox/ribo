@@ -18,9 +18,9 @@ import { RiboPackage } from './RiboPackage.js';
  */
 export class SketchArcImpl extends SketchCurveImpl implements SketchArc {
   // Feature ID Constants (eLiterals)
-  static readonly CENTER: number = 1;
-  static readonly START: number = 2;
-  static readonly END: number = 3;
+  static readonly CENTER: number = 2;
+  static readonly START: number = 3;
+  static readonly END: number = 4;
 
   // Private fields
   private _center?: SketchPoint;

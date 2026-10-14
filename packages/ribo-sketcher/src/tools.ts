@@ -66,6 +66,8 @@ export interface ToolContext {
   selection: { get(): Set<EObject>; set(objects: Set<EObject>): void }
   setTool(id: string): void
   editDimension(dimension: Dimension): void
+  /** Edges of the bodies, projected onto the sketch plane, as polylines in sketch coordinates */
+  bodyEdges(): Vec2[][]
 }
 
 const sub = (a: Vec2, b: Vec2): Vec2 => [a[0] - b[0], a[1] - b[1]]

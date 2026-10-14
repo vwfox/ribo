@@ -28,37 +28,38 @@ Der Ablauf orientiert sich an Fusion 360:
    - Kreis (C), 3-Punkt-Bogen (A), Polygon (P), Langloch, Punkt
    - Maße beim Zeichnen einfach eintippen. Tab wechselt das Feld, Enter übernimmt. Ausdrücke wie `breite/2` sind erlaubt.
    - Endpunkte fangen auf Punkte, Mittelpunkte und Kurven. Fast waagrechte oder senkrechte Linien bekommen automatisch H/V.
-3. **Ändern**: Abrunden (F), Stutzen (T), Hilfsgeometrie (X), Versatz (O), Spiegeln (M), rechteckiges und kreisförmiges Muster.
+3. **Projizieren** (J): Körperkanten anklicken; sie werden als fixierte, lila Referenzgeometrie übernommen (gerade Kanten als Linie, runde als Kreis/Bogen, sonst als Linienzug). Die rote X- und grüne Y-Achse lassen sich ebenso anklicken und werden zu Hilfs-Referenzlinien, z. B. als Spiegelachse.
+4. **Ändern**: Abrunden (F), Stutzen (T), Hilfsgeometrie (X), Versatz (O), Spiegeln (M), rechteckiges und kreisförmiges Muster.
    - Versatz: Kurve anklicken, verbundene Kurven werden mitgenommen; Seite mit der Maus, Abstand eintippen.
    - Spiegeln und Muster: Kurven wählen (oder vorher auswählen), Enter, dann Spiegellinie bzw. Anzahl/Abstand.
-4. **Bemaßen** (D):
+5. **Bemaßen** (D):
    - Linie, Kreis, Bogen, zwei Punkte oder zwei Linien wählen und die Bemaßung platzieren.
    - Der Wert ist sofort editierbar, ein Doppelklick ändert ihn später.
-5. **Abhängigkeiten**: Horizontal/Vertikal (H), Koinzident, Parallel, Senkrecht, Tangential, Gleich, Mittelpunkt, Konzentrisch, Kollinear, Symmetrisch, Fixieren.
+6. **Abhängigkeiten**: Horizontal/Vertikal (H), Koinzident, Parallel, Senkrecht, Tangential, Gleich, Mittelpunkt, Konzentrisch, Kollinear, Symmetrisch, Fixieren.
    - Blau ist noch beweglich, schwarz ist vollständig bestimmt.
    - Widersprüchliche Abhängigkeiten werden abgelehnt.
-6. **Skizze beenden** (Strg+Enter).
-7. **Extrudieren** (E) oder **Drehen**:
+7. **Skizze beenden** (Strg+Enter).
+8. **Extrudieren** (E) oder **Drehen**:
    - Ohne Auswahl werden die äußeren Profile genommen, Löcher bleiben also Löcher.
    - Im Ansichtsfenster Profile anklicken, um sie hinzuzufügen oder zu entfernen.
    - Drehen geht um eine Skizzenachse oder eine gewählte Linie.
-8. **Bohrung** (H): an freien Punkten und Kreismittelpunkten einer Skizze. Einfach, Senkbohrung (Zylinderkopf) oder Kegelsenkung, Tiefe oder durch alles, Vorlagen M2–M8 für Durchgang, Zylinderkopf, Senkkopf, Gewindeeinsatz und Kernloch.
-9. **Konstruktionsebene**: Ursprungsebene, Körperfläche oder andere Ebene anklicken, dann Versatz und Neigung einstellen. Skizzen lassen sich darauf anlegen; ein Klick auf eine schräge Fläche bei „Skizze erstellen“ legt die Ebene automatisch an.
-10. **Abrunden** (F), **Fase**, **Schale**:
+9. **Bohrung** (H): an freien Punkten und Kreismittelpunkten einer Skizze. Einfach, Senkbohrung (Zylinderkopf) oder Kegelsenkung, Tiefe oder durch alles, Vorlagen M2–M8 für Durchgang, Zylinderkopf, Senkkopf, Gewindeeinsatz und Kernloch.
+10. **Konstruktionsebene**: Ursprungsebene, Körperfläche oder andere Ebene anklicken, dann Versatz und Neigung einstellen. Skizzen lassen sich darauf anlegen; ein Klick auf eine schräge Fläche bei „Skizze erstellen“ legt die Ebene automatisch an.
+11. **Abrunden** (F), **Fase**, **Schale**:
    - Das Feature anlegen und im Ansichtsfenster Kanten bzw. die offen bleibenden Flächen anklicken.
    - Das Ergebnis ist sofort sichtbar. Die Kanten vor dem Feature bleiben als feine Linien anklickbar.
    - Radius, Abstand, Wandstärke und die Tiefe der Schale sind Ausdrücke. Ohne Tiefe wird ganz ausgehöhlt.
-11. **Zeitleiste**:
+12. **Zeitleiste**:
    - Unterdrücken, bis zu einem Feature zurückrollen (neue Features landen am Marker)
    - Doppelklick auf eine Skizze bearbeitet sie.
-12. **Parameter** treiben Bemaßungen und Abstände, z. B. `wand * 2 + 0.4`.
-13. **Rückgängig/Wiederholen** mit Strg+Z / Strg+Y.
-14. **3D-Druck** (Panel rechts):
+13. **Parameter** treiben Bemaßungen und Abstände, z. B. `wand * 2 + 0.4`.
+14. **Rückgängig/Wiederholen** mit Strg+Z / Strg+Y.
+15. **3D-Druck** (Panel rechts):
     - Gewicht, Filamentlänge und Volumen, geschätzt bei 100 % Füllung
     - Prüft, ob das Teil aufs Druckbett passt (auch um 90° gedreht)
     - Überhänge über dem eingestellten Winkel und Wände unter der Mindestwandstärke, beides im Ansichtsfenster markierbar
     - Drucker-Vorlagen oder eigene Bettgröße, Material, Düse; gespeichert im Browser
-15. **Als 3MF exportieren** (Strg+E) für den Slicer, außerdem STL und **STEP** für andere CAD-Programme.
+16. **Als 3MF exportieren** (Strg+E) für den Slicer, außerdem STL und **STEP** für andere CAD-Programme.
 
 Navigation in 3D: links drehen, rechts oder Mitte verschieben, das Rad zoomt zum Mauszeiger. In der Skizze verschieben die rechte und die mittlere Taste.
 

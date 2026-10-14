@@ -25,6 +25,7 @@ const ICONS = {
   trim: 'svg:M6 7a2 2 0 1 0 0 .01M6 17a2 2 0 1 0 0 .01M8 8l12 10M8 16l12-10',
   construction: 'svg:M4 20l2.5-2.5M9 15l2.5-2.5M14 10l2.5-2.5M19 5l1-1',
   offset: 'svg:M4 18L14 8h6M4 13l6-6h10',
+  project: 'svg:M12 3v10M8 9l4 4 4-4M4 17l8 4 8-4-8-4z',
   mirror: 'svg:M12 3v18M9 7L4 17h5zM15 7l5 10h-5z',
   rectPattern: 'svg:M4 4h5v5H4zM15 4h5v5h-5zM4 15h5v5H4zM15 15h5v5h-5z',
   circPattern: 'svg:M12 3.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3M19 10.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3M12 17.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3M5 10.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3',
@@ -109,6 +110,7 @@ export async function activate(context: ModuleContext): Promise<void> {
   register(tool('fillet', 'Abrunden', 'sketch-modify', 20, 'F'))
   register(tool('trim', 'Stutzen', 'sketch-modify', 21, 'T'))
   register(tool('offset', 'Versatz', 'sketch-modify', 23, 'O'))
+  register(tool('project', 'Projizieren (Körperkanten, Achsen)', 'sketch-create', 18, 'J'))
   register(tool('mirror', 'Spiegeln', 'sketch-modify', 24, 'M'))
   register(tool('rectPattern', 'Rechteckiges Muster', 'sketch-modify', 25))
   register(tool('circPattern', 'Kreisförmiges Muster', 'sketch-modify', 26))

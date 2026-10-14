@@ -18,8 +18,8 @@ import { RiboPackage } from './RiboPackage.js';
  */
 export class SketchCircleImpl extends SketchCurveImpl implements SketchCircle {
   // Feature ID Constants (eLiterals)
-  static readonly CENTER: number = 1;
-  static readonly RADIUS: number = 2;
+  static readonly CENTER: number = 2;
+  static readonly RADIUS: number = 3;
 
   // Private fields
   private _center?: SketchPoint;

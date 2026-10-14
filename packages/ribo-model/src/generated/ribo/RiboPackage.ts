@@ -58,6 +58,7 @@ export class RiboPackage extends BasicEPackage {
     SKETCH_POINT__ORIGIN: null as unknown as EAttribute | EReference,
     SKETCH_CURVE: null as unknown as EClass,
     SKETCH_CURVE__CONSTRUCTION: null as unknown as EAttribute | EReference,
+    SKETCH_CURVE__REFERENCE: null as unknown as EAttribute | EReference,
     SKETCH_LINE: null as unknown as EClass,
     SKETCH_LINE__START: null as unknown as EAttribute | EReference,
     SKETCH_LINE__END: null as unknown as EAttribute | EReference,
@@ -363,6 +364,14 @@ export class RiboPackage extends BasicEPackage {
     sketchCurve_construction.setUpperBound(1);
     sketchCurveClass.getEStructuralFeatures().push(sketchCurve_construction);
     RiboPackage.Literals.SKETCH_CURVE__CONSTRUCTION = sketchCurve_construction;
+
+    // Create reference feature
+    const sketchCurve_reference = new BasicEAttribute();
+    sketchCurve_reference.setName('reference');
+    sketchCurve_reference.setLowerBound(1);
+    sketchCurve_reference.setUpperBound(1);
+    sketchCurveClass.getEStructuralFeatures().push(sketchCurve_reference);
+    RiboPackage.Literals.SKETCH_CURVE__REFERENCE = sketchCurve_reference;
 
     // Create SketchLine class
     const sketchLineClass = new BasicEClass();
@@ -1032,6 +1041,7 @@ export class RiboPackage extends BasicEPackage {
     (RiboPackage.Literals.SKETCH_POINT__Y as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
     (RiboPackage.Literals.SKETCH_POINT__ORIGIN as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EBoolean')!);
     (RiboPackage.Literals.SKETCH_CURVE__CONSTRUCTION as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EBoolean')!);
+    (RiboPackage.Literals.SKETCH_CURVE__REFERENCE as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EBoolean')!);
     (RiboPackage.Literals.SKETCH_LINE__START as BasicEReference).setEType(RiboPackage.Literals.SKETCH_POINT);
     (RiboPackage.Literals.SKETCH_LINE__END as BasicEReference).setEType(RiboPackage.Literals.SKETCH_POINT);
     (RiboPackage.Literals.SKETCH_CIRCLE__CENTER as BasicEReference).setEType(RiboPackage.Literals.SKETCH_POINT);
