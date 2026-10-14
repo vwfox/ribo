@@ -2,9 +2,10 @@ import { ref, shallowRef } from 'vue'
 import type { EObject } from '@emfts/core'
 import type { DocumentService, Notifier, SketcherService, SketchView, Vec2, ViewportService } from 'ribo-contracts'
 import { screenToSketch } from 'ribo-contracts'
-import { ConstraintKind, isSketchCurve, isSketchPoint, sketchOf, type Dimension, type Sketch, type SketchPoint } from 'ribo-model'
+import { ConstraintKind, isSketchCurve, isSketchPoint, sketchOf, type ConstructionPlane, type Dimension, type Sketch, type SketchPoint } from 'ribo-model'
 import { layoutDimension, layoutGlyphs } from './annotations'
 import { SketchEditor, type Snap } from './SketchEditor'
+import { CircularPatternTool, MirrorTool, OffsetTool, RectangularPatternTool } from './transforms'
 import {
   ArcTool,
   CircleTool,
@@ -81,7 +82,15 @@ export class SketcherController implements SketcherService {
     if (this.active.value) this.finish()
     const pick = await this.viewport.pickPlane()
     if (!pick) return
-    const sketch = this.document.addSketch(pick.plane, String(pick.offset))
+    let sketch: Sketch
+    if (pick.kind === 'origin') {
+      sketch = this.document.addSketch(pick.plane, String(pick.offset))
+    } else if (pick.kind === 'construction') {
+      sketch = this.document.addSketch(this.document.design.value.features.get(pick.index) as ConstructionPlane)
+    } else {
+      // A slanted face gets a construction plane of its own to sketch on
+      sketch = this.document.addSketch(this.document.addConstructionPlane(pick))
+    }
     this.edit(sketch)
   }
 
@@ -93,8 +102,8 @@ export class SketcherController implements SketcherService {
     this.active.value = sketch
     this.selection.value = new Set()
     this.document.select(sketch)
-    const offset = this.document.sketchPlan(sketch)?.offset ?? 0
-    this.viewport.enterSketchView(sketch.plane ?? 'XY', offset)
+    const frame = this.document.sketchPlan(sketch)?.frame
+    if (frame) this.viewport.enterSketchView(frame)
     this.setTool('select')
   }
 
@@ -160,6 +169,14 @@ export class SketcherController implements SketcherService {
         return new TrimTool(ctx)
       case 'dimension':
         return new DimensionTool(ctx)
+      case 'offset':
+        return new OffsetTool(ctx)
+      case 'mirror':
+        return new MirrorTool(ctx)
+      case 'rectPattern':
+        return new RectangularPatternTool(ctx)
+      case 'circPattern':
+        return new CircularPatternTool(ctx)
       default:
         return new SelectTool(ctx)
     }

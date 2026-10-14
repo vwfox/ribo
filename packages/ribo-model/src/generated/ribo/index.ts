@@ -32,6 +32,8 @@ export type { Chamfer } from './Chamfer.js';
 export type { Shell } from './Shell.js';
 export type { EdgeSelection } from './EdgeSelection.js';
 export type { FaceSelection } from './FaceSelection.js';
+export type { Hole } from './Hole.js';
+export type { ConstructionPlane } from './ConstructionPlane.js';
 
 // Implementations (including abstract classes, as they're extended by subclasses)
 export { DesignImpl } from './DesignImpl.js';
@@ -56,6 +58,8 @@ export { ChamferImpl } from './ChamferImpl.js';
 export { ShellImpl } from './ShellImpl.js';
 export { EdgeSelectionImpl } from './EdgeSelectionImpl.js';
 export { FaceSelectionImpl } from './FaceSelectionImpl.js';
+export { HoleImpl } from './HoleImpl.js';
+export { ConstructionPlaneImpl } from './ConstructionPlaneImpl.js';
 
 // Enums
 export { SketchPlane, getSketchPlane, getSketchPlaneByLiteral } from './SketchPlane.js';
@@ -64,3 +68,5 @@ export { DimensionKind, getDimensionKind, getDimensionKindByLiteral } from './Di
 export { FeatureOperation, getFeatureOperation, getFeatureOperationByLiteral } from './FeatureOperation.js';
 export { ExtentDirection, getExtentDirection, getExtentDirectionByLiteral } from './ExtentDirection.js';
 export { SketchAxis, getSketchAxis, getSketchAxisByLiteral } from './SketchAxis.js';
+export { HoleType, getHoleType, getHoleTypeByLiteral } from './HoleType.js';
+export { PlaneBase, getPlaneBase, getPlaneBaseByLiteral } from './PlaneBase.js';

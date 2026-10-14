@@ -8,6 +8,7 @@
 import { createContainmentEList } from '@emfts/core';
 import type { EClass, EStructuralFeature, EList, EReference } from '@emfts/core';
 import type { Feature } from './Feature.js';
+import type { ConstructionPlane } from './ConstructionPlane.js';
 import type { SketchPoint } from './SketchPoint.js';
 import type { SketchCurve } from './SketchCurve.js';
 import type { SketchConstraint } from './SketchConstraint.js';
@@ -24,13 +25,15 @@ export class SketchImpl extends FeatureImpl implements Sketch {
   // Feature ID Constants (eLiterals)
   static readonly PLANE: number = 2;
   static readonly OFFSET: number = 3;
-  static readonly POINTS: number = 4;
-  static readonly CURVES: number = 5;
-  static readonly CONSTRAINTS: number = 6;
+  static readonly REFERENCE: number = 4;
+  static readonly POINTS: number = 5;
+  static readonly CURVES: number = 6;
+  static readonly CONSTRAINTS: number = 7;
 
   // Private fields
   private _plane: SketchPlane = SketchPlane.XY;
   private _offset: string = "0";
+  private _reference?: ConstructionPlane;
   private _points!: EList<SketchPoint>;
   private _curves!: EList<SketchCurve>;
   private _constraints!: EList<SketchConstraint>;
@@ -91,6 +94,30 @@ export class SketchImpl extends FeatureImpl implements Sketch {
     }
   }
 
+  get reference(): ConstructionPlane {
+    return this._reference!;
+  }
+
+  set reference(value: ConstructionPlane) {
+    const oldValue = this._reference;
+    this._reference = value;
+    if (this.eDeliver()) {
+      this.eNotify({
+        getNotifier: () => this,
+        getEventType: () => 1, // SET
+        getFeature: () => this.eClass().getEStructuralFeature(SketchImpl.REFERENCE),
+        getOldValue: () => oldValue,
+        getNewValue: () => value,
+        getPosition: () => -1,
+        wasSet: () => true,
+        isTouch: () => false,
+        isReset: () => false,
+        getFeatureID: () => SketchImpl.REFERENCE,
+        merge: () => false
+      });
+    }
+  }
+
   get points(): EList<SketchPoint> {
     if (!this._points) {
       this._points = createContainmentEList<any>(this, this.eClass().getEStructuralFeature('points') as EReference);
@@ -124,6 +151,8 @@ export class SketchImpl extends FeatureImpl implements Sketch {
         return this.plane;
       case SketchImpl.OFFSET:
         return this.offset;
+      case SketchImpl.REFERENCE:
+        return this.reference;
       case SketchImpl.POINTS:
         return this.points;
       case SketchImpl.CURVES:
@@ -147,6 +176,10 @@ export class SketchImpl extends FeatureImpl implements Sketch {
         break;
       case SketchImpl.OFFSET:
         this.offset = newValue as string;
+        super.eSet(feature, newValue);
+        break;
+      case SketchImpl.REFERENCE:
+        this.reference = newValue as ConstructionPlane;
         super.eSet(feature, newValue);
         break;
       case SketchImpl.POINTS:
@@ -179,6 +212,8 @@ export class SketchImpl extends FeatureImpl implements Sketch {
         return this._plane !== SketchPlane.XY;
       case SketchImpl.OFFSET:
         return this._offset !== "0";
+      case SketchImpl.REFERENCE:
+        return this._reference !== undefined;
       case SketchImpl.POINTS:
         return this._points !== undefined && !this._points.isEmpty();
       case SketchImpl.CURVES:
@@ -201,6 +236,9 @@ export class SketchImpl extends FeatureImpl implements Sketch {
         return;
       case SketchImpl.OFFSET:
         this._offset = "0";
+        return;
+      case SketchImpl.REFERENCE:
+        this._reference = undefined;
         return;
       case SketchImpl.POINTS:
         if (this._points) this._points.clear();

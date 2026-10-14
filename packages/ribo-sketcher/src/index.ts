@@ -24,6 +24,10 @@ const ICONS = {
   fillet: 'svg:M5 20V13a8 8 0 0 1 8-8h7',
   trim: 'svg:M6 7a2 2 0 1 0 0 .01M6 17a2 2 0 1 0 0 .01M8 8l12 10M8 16l12-10',
   construction: 'svg:M4 20l2.5-2.5M9 15l2.5-2.5M14 10l2.5-2.5M19 5l1-1',
+  offset: 'svg:M4 18L14 8h6M4 13l6-6h10',
+  mirror: 'svg:M12 3v18M9 7L4 17h5zM15 7l5 10h-5z',
+  rectPattern: 'svg:M4 4h5v5H4zM15 4h5v5h-5zM4 15h5v5H4zM15 15h5v5h-5z',
+  circPattern: 'svg:M12 3.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3M19 10.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3M12 17.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3M5 10.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3',
   dimension: 'svg:M4 7v10M20 7v10M4 12h16M7.5 9.5L4 12l3.5 2.5M16.5 9.5L20 12l-3.5 2.5',
   sketch: 'svg:M4 20h16M6 16l9-9 3 3-9 9H6z',
 }
@@ -104,6 +108,10 @@ export async function activate(context: ModuleContext): Promise<void> {
   register(tool('point', 'Punkt', 'sketch-create', 17))
   register(tool('fillet', 'Abrunden', 'sketch-modify', 20, 'F'))
   register(tool('trim', 'Stutzen', 'sketch-modify', 21, 'T'))
+  register(tool('offset', 'Versatz', 'sketch-modify', 23, 'O'))
+  register(tool('mirror', 'Spiegeln', 'sketch-modify', 24, 'M'))
+  register(tool('rectPattern', 'Rechteckiges Muster', 'sketch-modify', 25))
+  register(tool('circPattern', 'Kreisförmiges Muster', 'sketch-modify', 26))
   register({
     id: 'sketch.construction',
     label: 'Hilfsgeometrie umschalten',

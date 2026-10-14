@@ -212,6 +212,75 @@ export class SketchEditor {
     this.tryAdd(() => this.constraint(horizontal ? ConstraintKind.Horizontal : ConstraintKind.Vertical, [], [line]), '')
   }
 
+  /**
+   * Copies curves through a point transform. Points shared between the copied
+   * curves stay shared; `keep` can map a point to itself (e.g. one lying on a
+   * mirror line). A mirroring transform reverses arcs, so their start and end swap.
+   */
+  copy(
+    curves: SketchCurve[],
+    transform: (p: Vec2) => Vec2,
+    mirrors = false,
+    keep: (p: SketchPoint) => boolean = () => false,
+  ): { points: Map<SketchPoint, SketchPoint>; curves: SketchCurve[] } {
+    const points = new Map<SketchPoint, SketchPoint>()
+    const map = (p: SketchPoint) => {
+      if (keep(p)) return p
+      let copy = points.get(p)
+      if (!copy) {
+        copy = this.point(transform(pos(p)))
+        points.set(p, copy)
+      }
+      return copy
+    }
+    const copies: SketchCurve[] = []
+    for (const curve of curves) {
+      let copy: SketchCurve | undefined
+      if (isLine(curve)) copy = this.line(map(curve.start), map(curve.end), curve.construction)
+      else if (isCircle(curve)) copy = this.circle(map(curve.center), curve.radius, curve.construction)
+      else if (isArc(curve)) {
+        copy = mirrors ? this.arc(map(curve.center), map(curve.end), map(curve.start)) : this.arc(map(curve.center), map(curve.start), map(curve.end))
+        copy.construction = curve.construction
+      }
+      if (copy) copies.push(copy)
+    }
+    return { points, curves: copies }
+  }
+
+  /**
+   * The curves connected to one through shared end points, in chain order,
+   * with each curve's direction of travel. Circles stand alone.
+   */
+  chain(start: SketchCurve): { curve: SketchCurve; forward: boolean }[] {
+    if (!isLine(start) && !isArc(start)) return [{ curve: start, forward: true }]
+    const ends = (c: SketchCurve): [SketchPoint, SketchPoint] | undefined =>
+      isLine(c) ? [c.start, c.end] : isArc(c) ? [c.start, c.end] : undefined
+    const candidates = this.curves().filter((c) => (isLine(c) || isArc(c)) && !c.construction === !start.construction)
+    const used = new Set<SketchCurve>([start])
+    const next = (point: SketchPoint) => {
+      const at = candidates.filter((c) => !used.has(c) && ends(c)!.includes(point))
+      // A branch point ends the chain: which way to go would be a guess
+      return at.length === 1 ? at[0] : undefined
+    }
+    const result: { curve: SketchCurve; forward: boolean }[] = [{ curve: start, forward: true }]
+    // Walk forward from the end, then backward from the start
+    let point = ends(start)![1]
+    for (let c = next(point); c; c = next(point)) {
+      used.add(c)
+      const [a, b] = ends(c)!
+      result.push({ curve: c, forward: a === point })
+      point = a === point ? b : a
+    }
+    point = ends(start)![0]
+    for (let c = next(point); c; c = next(point)) {
+      used.add(c)
+      const [a, b] = ends(c)!
+      result.unshift({ curve: c, forward: b === point })
+      point = b === point ? a : b
+    }
+    return result
+  }
+
   /** Removes a point if no curve and no constraint uses it any more */
   dropIfUnused(point: SketchPoint): void {
     if (point.origin) return

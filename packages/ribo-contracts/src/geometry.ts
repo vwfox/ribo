@@ -26,6 +26,18 @@ export const PLANE_BASIS: Record<PlanPlane, { x: ReadonlyVec3; y: ReadonlyVec3; 
 
 export type Vec2 = [number, number]
 
+/**
+ * A sketch plane as a right-handed coordinate system: sketch coordinates
+ * (u, v) sit at origin + u·x + v·y, and normal = x × y points to the side
+ * extrusions grow towards.
+ */
+export interface Frame {
+  origin: [number, number, number]
+  x: [number, number, number]
+  y: [number, number, number]
+  normal: [number, number, number]
+}
+
 /** A piece of a profile boundary in sketch coordinates */
 export type LoopSegment =
   | { kind: 'line'; from: Vec2; to: Vec2 }
@@ -60,7 +72,9 @@ export type PlanCurve =
 export type PlanOperation = 'NewBody' | 'Join' | 'Cut' | 'Intersect'
 
 export type PlanFeature =
-  | { kind: 'sketch'; index: number; plane: PlanPlane; offset: number; curves: PlanCurve[]; regions: PlanRegion[] }
+  | { kind: 'sketch'; index: number; frame: Frame; curves: PlanCurve[]; regions: PlanRegion[] }
+  /** A construction plane, for display and picking */
+  | { kind: 'plane'; index: number; frame: Frame }
   | {
       kind: 'extrude'
       index: number
@@ -96,8 +110,26 @@ export type ModifierFeature =
    */
   | { kind: 'shell'; index: number; faces: Vec3[]; thickness: number; depth?: number }
 
+/** Holes at points of a sketch, drilled against the sketch normal unless reversed */
+export interface HoleFeature {
+  kind: 'hole'
+  index: number
+  /** Timeline index of the sketch */
+  sketch: number
+  centers: Vec2[]
+  type: 'Simple' | 'Counterbore' | 'Countersink'
+  diameter: number
+  /** Undefined: through all */
+  depth?: number
+  headDiameter: number
+  headDepth: number
+  /** Degrees */
+  countersinkAngle: number
+  reversed: boolean
+}
+
 export interface BuildPlan {
-  features: (PlanFeature | ModifierFeature)[]
+  features: (PlanFeature | ModifierFeature | HoleFeature)[]
 }
 
 /** A problem with one timeline feature, by its index in Design.features. */

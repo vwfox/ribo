@@ -42,6 +42,10 @@ import type { EdgeSelection } from './EdgeSelection.js';
 import { EdgeSelectionImpl } from './EdgeSelectionImpl.js';
 import type { FaceSelection } from './FaceSelection.js';
 import { FaceSelectionImpl } from './FaceSelectionImpl.js';
+import type { Hole } from './Hole.js';
+import { HoleImpl } from './HoleImpl.js';
+import type { ConstructionPlane } from './ConstructionPlane.js';
+import { ConstructionPlaneImpl } from './ConstructionPlaneImpl.js';
 
 /**
  * Factory for creating Ribo model objects
@@ -183,6 +187,20 @@ export class RiboFactory extends BasicEFactory {
   }
 
   /**
+   * Create a new Hole instance
+   */
+  createHole(): Hole {
+    return new HoleImpl();
+  }
+
+  /**
+   * Create a new ConstructionPlane instance
+   */
+  createConstructionPlane(): ConstructionPlane {
+    return new ConstructionPlaneImpl();
+  }
+
+  /**
    * Create an instance of the given class
    */
   override create(eClass: EClass): EObject {
@@ -221,6 +239,10 @@ export class RiboFactory extends BasicEFactory {
         return this.createEdgeSelection();
       case 'FaceSelection':
         return this.createFaceSelection();
+      case 'Hole':
+        return this.createHole();
+      case 'ConstructionPlane':
+        return this.createConstructionPlane();
       default:
         throw new Error(`Unknown class: ${eClass.getName()}`);
     }

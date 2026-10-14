@@ -12,6 +12,10 @@ npm run dev        # http://localhost:5174
 npm run test:unit  # Vitest
 npm run type-check
 npm run lint
+
+npm run build      # dist/ mit Host und allen Modulen unter dist/plugins/
+npm run preview    # gebaute Version lokal ansehen
+docker build -t ribo . && docker run -p 8080:80 ribo
 ```
 
 ## Bedienung (Stand Schritt 4)
@@ -24,7 +28,9 @@ Der Ablauf orientiert sich an Fusion 360:
    - Kreis (C), 3-Punkt-Bogen (A), Polygon (P), Langloch, Punkt
    - Maße beim Zeichnen einfach eintippen. Tab wechselt das Feld, Enter übernimmt. Ausdrücke wie `breite/2` sind erlaubt.
    - Endpunkte fangen auf Punkte, Mittelpunkte und Kurven. Fast waagrechte oder senkrechte Linien bekommen automatisch H/V.
-3. **Ändern**: Abrunden (F), Stutzen (T), Hilfsgeometrie (X).
+3. **Ändern**: Abrunden (F), Stutzen (T), Hilfsgeometrie (X), Versatz (O), Spiegeln (M), rechteckiges und kreisförmiges Muster.
+   - Versatz: Kurve anklicken, verbundene Kurven werden mitgenommen; Seite mit der Maus, Abstand eintippen.
+   - Spiegeln und Muster: Kurven wählen (oder vorher auswählen), Enter, dann Spiegellinie bzw. Anzahl/Abstand.
 4. **Bemaßen** (D):
    - Linie, Kreis, Bogen, zwei Punkte oder zwei Linien wählen und die Bemaßung platzieren.
    - Der Wert ist sofort editierbar, ein Doppelklick ändert ihn später.
@@ -36,21 +42,23 @@ Der Ablauf orientiert sich an Fusion 360:
    - Ohne Auswahl werden die äußeren Profile genommen, Löcher bleiben also Löcher.
    - Im Ansichtsfenster Profile anklicken, um sie hinzuzufügen oder zu entfernen.
    - Drehen geht um eine Skizzenachse oder eine gewählte Linie.
-8. **Abrunden** (F), **Fase**, **Schale**:
+8. **Bohrung** (H): an freien Punkten und Kreismittelpunkten einer Skizze. Einfach, Senkbohrung (Zylinderkopf) oder Kegelsenkung, Tiefe oder durch alles, Vorlagen M2–M8 für Durchgang, Zylinderkopf, Senkkopf, Gewindeeinsatz und Kernloch.
+9. **Konstruktionsebene**: Ursprungsebene, Körperfläche oder andere Ebene anklicken, dann Versatz und Neigung einstellen. Skizzen lassen sich darauf anlegen; ein Klick auf eine schräge Fläche bei „Skizze erstellen“ legt die Ebene automatisch an.
+10. **Abrunden** (F), **Fase**, **Schale**:
    - Das Feature anlegen und im Ansichtsfenster Kanten bzw. die offen bleibenden Flächen anklicken.
    - Das Ergebnis ist sofort sichtbar. Die Kanten vor dem Feature bleiben als feine Linien anklickbar.
    - Radius, Abstand, Wandstärke und die Tiefe der Schale sind Ausdrücke. Ohne Tiefe wird ganz ausgehöhlt.
-9. **Zeitleiste**:
+11. **Zeitleiste**:
    - Unterdrücken, bis zu einem Feature zurückrollen (neue Features landen am Marker)
    - Doppelklick auf eine Skizze bearbeitet sie.
-10. **Parameter** treiben Bemaßungen und Abstände, z. B. `wand * 2 + 0.4`.
-11. **Rückgängig/Wiederholen** mit Strg+Z / Strg+Y.
-12. **3D-Druck** (Panel rechts):
+12. **Parameter** treiben Bemaßungen und Abstände, z. B. `wand * 2 + 0.4`.
+13. **Rückgängig/Wiederholen** mit Strg+Z / Strg+Y.
+14. **3D-Druck** (Panel rechts):
     - Gewicht, Filamentlänge und Volumen, geschätzt bei 100 % Füllung
     - Prüft, ob das Teil aufs Druckbett passt (auch um 90° gedreht)
     - Überhänge über dem eingestellten Winkel und Wände unter der Mindestwandstärke, beides im Ansichtsfenster markierbar
     - Drucker-Vorlagen oder eigene Bettgröße, Material, Düse; gespeichert im Browser
-13. **Als 3MF exportieren** (Strg+E) für den Slicer, außerdem STL und **STEP** für andere CAD-Programme.
+15. **Als 3MF exportieren** (Strg+E) für den Slicer, außerdem STL und **STEP** für andere CAD-Programme.
 
 Navigation in 3D: links drehen, rechts oder Mitte verschieben, das Rad zoomt zum Mauszeiger. In der Skizze verschieben die rechte und die mittlere Taste.
 
@@ -96,10 +104,9 @@ npm run generate
 
 ## Bekannte Grenzen
 
-- Die Produktions-Builds der Module fehlen noch. `npm run build` baut nur den Host, die Module kommen im Dev-Server über `/plugins`.
-- Skizzen liegen auf Ursprungsebenen mit Versatz. Ebene Flächen, die zu einer Ursprungsebene parallel sind, lassen sich anklicken; schräge Ebenen noch nicht.
 - Der Solver ändert beim Hinzufügen einer Abhängigkeit manchmal mehr Geometrie als nötig (DogLeg von PlaneGCS).
-- Offset, Spiegeln und Muster in der Skizze fehlen noch.
+- Muster in der Skizze sind Kopien ohne Verknüpfung zum Original; Spiegeln und Versatz bleiben über Abhängigkeiten gekoppelt.
+- Bohrungen modellieren kein Gewinde, sie bohren das passende Kernloch bzw. die Aufnahme für Einschmelzmuttern.
 - Gewählte Kanten und Flächen werden über ihre Lage gemerkt (Toleranz 0,5 mm). Verschiebt eine Maßänderung sie weiter, meldet das Feature „nicht mehr gefunden“, und man wählt sie neu.
 - Eine Schale, deren offene Fläche an eine Rundung grenzt, schafft OpenCascade nicht. Dann die Schale vor dem Abrunden anlegen (Zeitleiste zurückrollen).
 - Die Enum-Attribute haben im generierten Package keinen `eType` (#83). Die Werte werden als Literal-Strings gespeichert.

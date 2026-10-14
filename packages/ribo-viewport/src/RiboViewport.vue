@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Button from 'primevue/button'
 import type { DocumentService } from 'ribo-contracts'
-import { isBodyModifier, isEdgeFeature, isFillet, isProfileFeature, isShell, isSketch, sketchOf, type EdgeFeature, type ProfileFeature, type Shell } from 'ribo-model'
+import { isBodyModifier, isEdgeFeature, isHole, isFillet, isProfileFeature, isShell, isSketch, sketchOf, type EdgeFeature, type ProfileFeature, type Shell } from 'ribo-model'
 import { SceneView, type SceneColors, type ViewDirection } from './SceneView'
 import type { ViewportController } from './ViewportController'
 
@@ -108,14 +108,23 @@ function updateSketches() {
     return
   }
   const features = document.design.value.features.toArray()
-  const consumed = new Set(plan.features.flatMap((f) => (f.kind === 'extrude' || f.kind === 'revolve' ? [f.sketch] : [])))
+  const consumed = new Set(plan.features.flatMap((f) => (f.kind === 'extrude' || f.kind === 'revolve' || f.kind === 'hole' ? [f.sketch] : [])))
   const visible = new Set(plan.features.flatMap((f) => (f.kind === 'sketch' && !consumed.has(f.index) ? [f.index] : [])))
-  const selectedSketch = sketchOf(document.selection.value)
+  const selected = document.selection.value
+  const selectedSketch = sketchOf(selected) ?? (isHole(selected) ? selected.sketch : undefined)
   const feature = profileFeature.value
   const highlighted = selectedSketch ? features.indexOf(selectedSketch) : undefined
   if (highlighted !== undefined && highlighted >= 0) visible.add(highlighted)
   if (feature?.sketch) visible.add(features.indexOf(feature.sketch))
   scene.setSketches(plan, visible, isSketch(document.selection.value) ? highlighted : undefined)
+}
+
+function updatePlanes() {
+  if (!scene) return
+  const features = props.document.design.value.features.toArray()
+  const selected = props.document.selection.value
+  const planes = props.document.plan.value.features.flatMap((f) => (f.kind === 'plane' ? [{ index: f.index, frame: f.frame }] : []))
+  scene.setConstructionPlanes(planes, selected ? features.indexOf(selected as never) : undefined)
 }
 
 function updateRegions() {
@@ -184,6 +193,7 @@ onMounted(() => {
     () => {
       updateSketches()
       updateRegions()
+      updatePlanes()
     },
     { immediate: true },
   )

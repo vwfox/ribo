@@ -21,12 +21,13 @@ import {
   type Shape3D,
   type Sketch,
 } from 'replicad'
+import { frameDirection, frameToWorld } from 'ribo-geometry'
 import {
-  PLANE_BASIS,
   type BodyFace,
   type BodyMesh,
   type BuildPlan,
   type FeatureProblem,
+  type HoleFeature,
   type LoopSegment,
   type ModifierFeature,
   type PlanFeature,
@@ -92,16 +93,19 @@ function regionDrawing(region: PlanRegion): Drawing {
   return drawing
 }
 
-function sketchPlane(sketch: SketchFeature, offset = sketch.offset): Plane {
-  const basis = PLANE_BASIS[sketch.plane]
-  const origin: Vec3 = [basis.normal[0] * offset, basis.normal[1] * offset, basis.normal[2] * offset]
-  return new Plane(origin, [...basis.x], [...basis.normal])
+/** The sketch plane, optionally shifted along its normal */
+function sketchPlane(sketch: SketchFeature, shift = 0): Plane {
+  const { origin, x, normal } = sketch.frame
+  return new Plane(
+    [origin[0] + normal[0] * shift, origin[1] + normal[1] * shift, origin[2] + normal[2] * shift],
+    [...x],
+    [...normal],
+  )
 }
 
 /** Sketch coordinates to world coordinates */
-function toWorld(sketch: SketchFeature, [u, v]: Vec2, offset = sketch.offset): Vec3 {
-  const { x, y, normal } = PLANE_BASIS[sketch.plane]
-  return [0, 1, 2].map((i) => x[i]! * u + y[i]! * v + normal[i]! * offset) as Vec3
+function toWorld(sketch: SketchFeature, point: Vec2): Vec3 {
+  return frameToWorld(sketch.frame, point)
 }
 
 /** The selected regions as one drawing; adjacent regions merge in 2D */
@@ -119,15 +123,13 @@ function toolOf(sketch: SketchFeature, feature: ProfileFeature): Shape3D {
   const drawing = profileDrawing(sketch, feature)
   if (feature.kind === 'extrude') {
     if (feature.distance <= 0) throw new Error('Abstand muss größer als 0 sein')
-    const offset = feature.direction === 'Symmetric' ? sketch.offset - feature.distance / 2 : sketch.offset
-    const placed = drawing.sketchOnPlane(sketchPlane(sketch, offset)) as Sketch
+    const shift = feature.direction === 'Symmetric' ? -feature.distance / 2 : 0
+    const placed = drawing.sketchOnPlane(sketchPlane(sketch, shift)) as Sketch
     return placed.extrude(feature.direction === 'Reversed' ? -feature.distance : feature.distance)
   }
   if (feature.angle <= 0 || feature.angle > 360) throw new Error('Winkel muss zwischen 0 und 360° liegen')
-  const [du, dv] = feature.axis.direction
-  if (Math.hypot(du, dv) < 1e-9) throw new Error('Die Drehachse hat keine Länge')
-  const { x, y } = PLANE_BASIS[sketch.plane]
-  const direction = [0, 1, 2].map((i) => x[i]! * du + y[i]! * dv) as Vec3
+  if (Math.hypot(...feature.axis.direction) < 1e-9) throw new Error('Die Drehachse hat keine Länge')
+  const direction = frameDirection(sketch.frame, feature.axis.direction)
   const placed = drawing.sketchOnPlane(sketchPlane(sketch)) as Sketch
   return placed.revolve(direction, { origin: toWorld(sketch, feature.axis.origin), angle: feature.angle })
 }
@@ -177,6 +179,68 @@ function nearest<T extends Edge | Face>(points: Vec3[], candidates: { body: numb
     vertex.delete()
     return best
   })
+}
+
+/** Depth of a through hole: far beyond any printable part */
+const THROUGH_ALL = 10000
+/** Holes start this far in front of the sketch plane, so they cut cleanly through a face lying in it */
+const HOLE_LEAD_IN = 0.05
+
+/**
+ * All holes of a hole feature as one solid. Each is a half cross-section -
+ * radius against depth - revolved around the hole axis.
+ */
+function holeTool(sketch: SketchFeature, hole: HoleFeature): Shape3D {
+  const { x, normal } = sketch.frame
+  const drill: Vec3 = hole.reversed ? [normal[0], normal[1], normal[2]] : [-normal[0], -normal[1], -normal[2]]
+  const radial: Vec3 = [x[0], x[1], x[2]]
+  // Plane containing the axis: x radial, y along the drill direction
+  const planeNormal: Vec3 = [
+    radial[1] * drill[2] - radial[2] * drill[1],
+    radial[2] * drill[0] - radial[0] * drill[2],
+    radial[0] * drill[1] - radial[1] * drill[0],
+  ]
+  const r = hole.diameter / 2
+  const R = hole.headDiameter / 2
+  const depth = hole.depth ?? THROUGH_ALL
+  if (depth <= 0) throw new Error('Tiefe muss größer als 0 sein')
+  const lead = -HOLE_LEAD_IN
+
+  // (radius, depth) corners of the cross-section, top to bottom
+  let profile: [number, number][]
+  if (hole.type === 'Counterbore') {
+    if (hole.headDepth <= 0 || hole.headDepth >= depth) throw new Error('Senktiefe muss zwischen 0 und der Bohrungstiefe liegen')
+    profile = [[0, lead], [R, lead], [R, hole.headDepth], [r, hole.headDepth], [r, depth], [0, depth]]
+  } else if (hole.type === 'Countersink') {
+    const half = (hole.countersinkAngle * Math.PI) / 360
+    if (half <= 0 || half >= Math.PI / 2) throw new Error('Senkwinkel muss zwischen 0 und 180° liegen')
+    const coneDepth = (R - r) / Math.tan(half)
+    if (coneDepth >= depth) throw new Error('Die Senkung ist tiefer als die Bohrung')
+    profile = [[0, lead], [R + HOLE_LEAD_IN * Math.tan(half), lead], [r, coneDepth], [r, depth], [0, depth]]
+  } else {
+    profile = [[0, lead], [r, lead], [r, depth], [0, depth]]
+  }
+
+  const tools = hole.centers.map((center) => {
+    const origin = toWorld(sketch, center)
+    const pen = draw(profile[0]!)
+    for (const point of profile.slice(1)) pen.lineTo(point)
+    const section = pen.close().sketchOnPlane(new Plane(origin, radial, planeNormal)) as Sketch
+    return section.revolve(drill, { origin })
+  })
+  return fuseAll(tools)
+}
+
+/** Unites several solids into one, deleting the intermediates */
+function fuseAll(solids: Shape3D[]): Shape3D {
+  let result = solids[0]!
+  for (const solid of solids.slice(1)) {
+    const fused = result.fuse(solid)
+    result.delete()
+    solid.delete()
+    result = fused
+  }
+  return result
 }
 
 /** True when OpenCascade's checker finds nothing wrong with the shape */
@@ -316,6 +380,21 @@ export function buildDesign(plan: BuildPlan): BuiltDesign {
     try {
       if (feature.kind === 'sketch') {
         sketches.set(feature.index, feature)
+        continue
+      }
+      // Construction planes only place sketches; nothing to build
+      if (feature.kind === 'plane') continue
+      if (feature.kind === 'hole') {
+        const sketch = sketches.get(feature.sketch)
+        if (!sketch) throw new Error('Die Skizze dieser Bohrung ist nicht verfügbar')
+        if (bodies.length === 0) throw new Error('Kein Körper zum Bohren vorhanden')
+        const tool = holeTool(sketch, feature)
+        bodies = bodies.map((body) => {
+          const next = body.cut(tool)
+          body.delete()
+          return next
+        })
+        tool.delete()
         continue
       }
       if (feature.kind === 'fillet' || feature.kind === 'chamfer' || feature.kind === 'shell') {

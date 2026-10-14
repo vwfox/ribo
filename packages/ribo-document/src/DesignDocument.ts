@@ -12,7 +12,9 @@ import {
   RiboFactory,
   FeatureOperation,
   isBodyModifier,
+  isConstructionPlane,
   isFeature,
+  isHole,
   isParameter,
   isProfileFeature,
   isRevolve,
@@ -22,9 +24,11 @@ import {
   isSketchPoint,
   pointsOf,
   sketchOf,
+  type ConstructionPlane,
   type Design,
   type EdgeFeature,
   type Feature,
+  type Hole,
   type Parameter,
   type ProfileFeature,
   type Sketch,
@@ -39,7 +43,9 @@ import type {
   BuildResult,
   DocumentService,
   FeatureProblem,
+  Frame,
   KernelService,
+  PlanePick,
   SketchPlanFeature,
   SolveOutcome,
   Vec2,
@@ -47,8 +53,8 @@ import type {
 } from 'ribo-contracts'
 import { evaluateExpression } from './expression'
 import { History } from './History'
-import { compilePlan, evaluateParameters, scopeOf, sketchCurves, sketchRegions } from './plan'
-import { regionAt } from 'ribo-geometry'
+import { compilePlan, evaluateParameters, scopeOf, sketchCurves, sketchFrame, sketchRegions } from './plan'
+import { originFrame, regionAt } from 'ribo-geometry'
 import type { SketchSolver } from './solver'
 
 const BUILD_DELAY_MS = 120
@@ -194,10 +200,11 @@ export class DesignDocument implements DocumentService {
     return parameter
   }
 
-  addSketch(plane: SketchPlane, offset = '0'): Sketch {
+  addSketch(plane: SketchPlane | ConstructionPlane, offset = '0'): Sketch {
     const sketch = this.factory.createSketch()
     sketch.name = this.nextFeatureName('Skizze')
-    sketch.plane = plane
+    if (typeof plane === 'string') sketch.plane = plane
+    else sketch.reference = plane
     sketch.offset = offset
     const origin = this.factory.createSketchPoint()
     origin.origin = true
@@ -255,14 +262,14 @@ export class DesignDocument implements DocumentService {
     if (planned) return planned
     // Rolled back or suppressed: evaluate it on its own
     if (index < 0) return undefined
-    let offset = 0
+    let frame: Frame
     try {
-      offset = this.evaluate(sketch.offset ?? '0')
+      frame = sketchFrame(sketch, (_label, source) => this.evaluate(source ?? '0'))
     } catch {
-      offset = 0
+      frame = originFrame(sketch.plane ?? 'XY')
     }
     const curves = sketchCurves(sketch)
-    return { kind: 'sketch', index, plane: sketch.plane ?? 'XY', offset, curves, regions: sketchRegions(curves) }
+    return { kind: 'sketch', index, frame, curves, regions: sketchRegions(curves) }
   }
 
   toggleProfile(feature: ProfileFeature, point: Vec2): void {
@@ -301,6 +308,25 @@ export class DesignDocument implements DocumentService {
 
   // --------------------------------------------------------- modifications
 
+  addConstructionPlane(pick: PlanePick): ConstructionPlane {
+    const plane = this.factory.createConstructionPlane()
+    plane.name = this.nextFeatureName('Ebene')
+    if (pick.kind === 'origin') {
+      plane.base = pick.plane
+      plane.offset = String(pick.offset)
+    } else if (pick.kind === 'face') {
+      plane.base = 'Face'
+      ;[plane.originX, plane.originY, plane.originZ] = pick.origin
+      ;[plane.normalX, plane.normalY, plane.normalZ] = pick.normal
+    } else {
+      plane.base = 'Plane'
+      plane.reference = this.design.value.features.get(pick.index) as ConstructionPlane
+    }
+    this.history.record('Konstruktionsebene', () => this.insertFeature(plane))
+    this.select(plane)
+    return plane
+  }
+
   addFillet(): EdgeFeature {
     const fillet = this.factory.createFillet()
     fillet.name = this.nextFeatureName('Abrundung')
@@ -323,6 +349,16 @@ export class DesignDocument implements DocumentService {
     this.history.record('Schale', () => this.insertFeature(shell))
     this.select(shell)
     return shell
+  }
+
+  addHole(sketch?: Sketch): Hole {
+    const hole = this.factory.createHole()
+    hole.name = this.nextFeatureName('Bohrung')
+    hole.preset = 'M3 Durchgang'
+    hole.sketch = (sketch ?? sketchOf(this.selection.value) ?? this.design.value.features.toArray().filter(isSketch).at(-1)) as Sketch
+    this.history.record('Bohrung', () => this.insertFeature(hole))
+    this.select(hole)
+    return hole
   }
 
   toggleEdge(feature: EdgeFeature, [x, y, z]: Vec3, existing?: number): void {
@@ -427,7 +463,18 @@ export class DesignDocument implements DocumentService {
     const design = this.design.value
 
     if (isFeature(object)) {
+      if (isConstructionPlane(object)) {
+        for (const feature of design.features.toArray()) {
+          if ((isSketch(feature) || isConstructionPlane(feature)) && feature.reference === object) {
+            // Without the plane a sketch falls back to its origin plane
+            feature.reference = undefined as never
+          }
+        }
+      }
       if (isSketch(object)) {
+        for (const feature of design.features.toArray()) {
+          if (isHole(feature) && feature.sketch === object) feature.sketch = undefined as unknown as Sketch
+        }
         for (const feature of design.features.toArray().filter(isProfileFeature)) {
           if (feature.sketch !== object) continue
           feature.sketch = undefined as unknown as Sketch

@@ -10,9 +10,11 @@ import { serviceId } from '@eclipse-daanse/tsm'
 import type { App, Component, ComputedRef, Ref, ShallowRef } from 'vue'
 import type { EObject } from '@emfts/core'
 import type {
+  ConstructionPlane,
   Design,
   EdgeFeature,
   Feature,
+  Hole,
   Shell,
   Parameter,
   ProfileFeature,
@@ -24,7 +26,7 @@ import type {
 } from 'ribo-model'
 
 export * from './geometry'
-import type { BuildPlan, BuildResult, ExportFormat, FeatureProblem, PlanFeature, PlanPlane, Vec2, Vec3 } from './geometry'
+import type { BuildPlan, BuildResult, ExportFormat, FeatureProblem, Frame, PlanFeature, PlanPlane, Vec2, Vec3 } from './geometry'
 
 // ---------------------------------------------------------------------------
 // Kernel
@@ -100,8 +102,10 @@ export interface DocumentService {
   parameterValues(): Map<Parameter, number | Error>
 
   addParameter(): Parameter
-  /** A new sketch (with its origin point) at the end of the timeline, or at the rollback marker */
-  addSketch(plane: SketchPlane, offset?: string): Sketch
+  /** A new sketch (with its origin point) on an origin or construction plane, at the end of the timeline or the rollback marker */
+  addSketch(plane: SketchPlane | ConstructionPlane, offset?: string): Sketch
+  /** A construction plane on a picked origin plane, face or other construction plane */
+  addConstructionPlane(pick: PlanePick): ConstructionPlane
   addExtrude(sketch?: Sketch): ProfileFeature
   addRevolve(sketch?: Sketch): ProfileFeature
   /** Removes an object and everything that only existed for it (constraints, orphaned points, references) */
@@ -126,6 +130,8 @@ export interface DocumentService {
   addFillet(): EdgeFeature
   addChamfer(): EdgeFeature
   addShell(): Shell
+  /** A hole feature drilling at the points of the sketch (default: selected or last sketch) */
+  addHole(sketch?: Sketch): Hole
   /** Adds the edge with this midpoint, or with `existing` removes that earlier pick */
   toggleEdge(feature: EdgeFeature, midpoint: Vec3, existing?: number): void
   /** Adds the face at this point, or with `existing` removes that earlier pick */
@@ -143,17 +149,16 @@ export const DOCUMENT = serviceId<DocumentService>('ribo.document')
 // Viewport
 // ---------------------------------------------------------------------------
 
-/** A plane picked for a new sketch */
-export interface PlanePick {
-  plane: PlanPlane
-  /** Offset along the plane normal, mm */
-  offset: number
-}
+/** A plane picked for a new sketch: an origin plane (axis-aligned faces become these), a slanted face, or a construction plane */
+export type PlanePick =
+  | { kind: 'origin'; plane: PlanPlane; offset: number }
+  | { kind: 'face'; origin: Vec3; normal: Vec3 }
+  /** Timeline index of the construction plane */
+  | { kind: 'construction'; index: number }
 
 /** The 2D view of a sketch plane, as the viewport shows it in sketch mode */
 export interface SketchView {
-  plane: PlanPlane
-  offset: number
+  frame: Frame
   /** Sketch coordinates shown in the middle of the viewport */
   center: Vec2
   /** Screen pixels per millimetre */
@@ -168,7 +173,7 @@ export interface ViewportService {
   /** The 2D view while in sketch mode */
   readonly sketchView: ShallowRef<SketchView | undefined>
   /** Turns the camera onto the sketch plane and switches to the flat 2D view */
-  enterSketchView(plane: PlanPlane, offset: number): void
+  enterSketchView(frame: Frame): void
   /** Back to the 3D view the user had before */
   exitSketchView(): void
   /** Lets the user click an origin plane or a flat face; undefined on Escape */

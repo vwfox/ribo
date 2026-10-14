@@ -57,7 +57,7 @@ function setDimension(value: string | undefined) {
 <template>
   <div v-if="sketch" class="ribo-palette">
     <div class="ribo-palette-name">
-      <i class="pi pi-pencil" /> <strong>{{ sketch.name }}</strong> · Ebene {{ sketch.plane }}
+      <i class="pi pi-pencil" /> <strong>{{ sketch.name }}</strong> · {{ sketch.reference ? sketch.reference.name : `Ebene ${sketch.plane}` }}
     </div>
     <div v-if="counts" class="ribo-palette-counts">
       {{ counts.curves }} Kurven · {{ counts.constraints }} Abhängigkeiten · {{ counts.dimensions }} Bemaßungen ·

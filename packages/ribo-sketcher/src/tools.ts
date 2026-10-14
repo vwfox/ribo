@@ -96,6 +96,12 @@ export abstract class Tool {
   }
   up(_e: ToolPointer): void {}
   dblclick(_e: ToolPointer): void {}
+  /** Enter without a value field: the tool's next step */
+  enter(): void {}
+  /** Objects the tool has picked so far, highlighted by the overlay */
+  picked(): EObject[] {
+    return []
+  }
   /** Escape: true when the tool had something to cancel */
   escape(): boolean {
     return false
@@ -1150,7 +1156,7 @@ export class DimensionTool extends Tool {
   }
 
   /** Highlighted picks, for the overlay */
-  picked(): Pick[] {
+  override picked(): Pick[] {
     return this.picks
   }
 
@@ -1320,7 +1326,7 @@ export class ConstraintTool extends Tool {
     return undefined
   }
 
-  picked(): Pick[] {
+  override picked(): Pick[] {
     return this.picks
   }
 

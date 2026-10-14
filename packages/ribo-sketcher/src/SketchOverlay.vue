@@ -7,7 +7,7 @@ import { isArc, isCircle, isDimension, isLine, type Dimension, type SketchCurve,
 import { layoutDimension, layoutGlyphs, measure } from './annotations'
 import { gridStep, type SketcherController } from './SketcherController'
 import { pos } from './SketchEditor'
-import { ConstraintTool, DimensionTool, type Preview } from './tools'
+import type { Preview } from './tools'
 
 const props = defineProps<{ controller: SketcherController; document: DocumentService }>()
 const controller = props.controller
@@ -128,8 +128,8 @@ function arcPath(center: Vec2, radius: number, from: Vec2, to: Vec2): string {
 }
 
 const picked = computed(() => {
-  const t = tool.value
-  return new Set<EObject>(t instanceof DimensionTool || t instanceof ConstraintTool ? t.picked() : [])
+  void revision.value
+  return new Set<EObject>(tool.value?.picked() ?? [])
 })
 
 const curves = computed(() => {
@@ -359,6 +359,15 @@ function onKeyDown(event: KeyboardEvent) {
   if (target?.closest('input, textarea, select, [contenteditable="true"]')) return
   if (event.key === 'Escape') {
     controller.escape()
+    controller.tick.value++
+    return
+  }
+  if (event.key === 'Enter' && !event.ctrlKey && !event.metaKey) {
+    event.preventDefault()
+    event.stopPropagation()
+    // With value fields Enter applies them (empty ones take their defaults), otherwise the tool's next step
+    if (fields.value.length) applyFields()
+    else tool.value?.enter()
     controller.tick.value++
     return
   }

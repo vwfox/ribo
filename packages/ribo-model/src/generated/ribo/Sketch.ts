@@ -8,6 +8,7 @@
 import type { EObject, EList, BasicEObject, EClass, EStructuralFeature } from '@emfts/core';
 import type { Feature } from './Feature.js';
 import type { SketchPlane } from './SketchPlane.js';
+import type { ConstructionPlane } from './ConstructionPlane.js';
 import type { SketchPoint } from './SketchPoint.js';
 import type { SketchCurve } from './SketchCurve.js';
 import type { SketchConstraint } from './SketchConstraint.js';
@@ -19,6 +20,7 @@ import type { SketchConstraint } from './SketchConstraint.js';
 export interface Sketch extends Feature {
   plane: SketchPlane;
   offset: string;
+  reference?: ConstructionPlane;
   points: EList<SketchPoint>;
   curves: EList<SketchCurve>;
   constraints: EList<SketchConstraint>;

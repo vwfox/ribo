@@ -48,6 +48,7 @@ export class RiboPackage extends BasicEPackage {
     SKETCH: null as unknown as EClass,
     SKETCH__PLANE: null as unknown as EAttribute | EReference,
     SKETCH__OFFSET: null as unknown as EAttribute | EReference,
+    SKETCH__REFERENCE: null as unknown as EAttribute | EReference,
     SKETCH__POINTS: null as unknown as EAttribute | EReference,
     SKETCH__CURVES: null as unknown as EAttribute | EReference,
     SKETCH__CONSTRAINTS: null as unknown as EAttribute | EReference,
@@ -109,6 +110,28 @@ export class RiboPackage extends BasicEPackage {
     FACE_SELECTION__X: null as unknown as EAttribute | EReference,
     FACE_SELECTION__Y: null as unknown as EAttribute | EReference,
     FACE_SELECTION__Z: null as unknown as EAttribute | EReference,
+    HOLE: null as unknown as EClass,
+    HOLE__SKETCH: null as unknown as EAttribute | EReference,
+    HOLE__HOLE_TYPE: null as unknown as EAttribute | EReference,
+    HOLE__PRESET: null as unknown as EAttribute | EReference,
+    HOLE__DIAMETER: null as unknown as EAttribute | EReference,
+    HOLE__DEPTH: null as unknown as EAttribute | EReference,
+    HOLE__HEAD_DIAMETER: null as unknown as EAttribute | EReference,
+    HOLE__HEAD_DEPTH: null as unknown as EAttribute | EReference,
+    HOLE__COUNTERSINK_ANGLE: null as unknown as EAttribute | EReference,
+    HOLE__REVERSED: null as unknown as EAttribute | EReference,
+    CONSTRUCTION_PLANE: null as unknown as EClass,
+    CONSTRUCTION_PLANE__BASE: null as unknown as EAttribute | EReference,
+    CONSTRUCTION_PLANE__REFERENCE: null as unknown as EAttribute | EReference,
+    CONSTRUCTION_PLANE__ORIGIN_X: null as unknown as EAttribute | EReference,
+    CONSTRUCTION_PLANE__ORIGIN_Y: null as unknown as EAttribute | EReference,
+    CONSTRUCTION_PLANE__ORIGIN_Z: null as unknown as EAttribute | EReference,
+    CONSTRUCTION_PLANE__NORMAL_X: null as unknown as EAttribute | EReference,
+    CONSTRUCTION_PLANE__NORMAL_Y: null as unknown as EAttribute | EReference,
+    CONSTRUCTION_PLANE__NORMAL_Z: null as unknown as EAttribute | EReference,
+    CONSTRUCTION_PLANE__OFFSET: null as unknown as EAttribute | EReference,
+    CONSTRUCTION_PLANE__ANGLE: null as unknown as EAttribute | EReference,
+    CONSTRUCTION_PLANE__TILT_AXIS: null as unknown as EAttribute | EReference,
   };
 
   private constructor() {
@@ -254,6 +277,15 @@ export class RiboPackage extends BasicEPackage {
     sketch_offset.setUpperBound(1);
     sketchClass.getEStructuralFeatures().push(sketch_offset);
     RiboPackage.Literals.SKETCH__OFFSET = sketch_offset;
+
+    // Create reference feature
+    const sketch_reference = new BasicEReference();
+    sketch_reference.setContainment(false);
+    sketch_reference.setName('reference');
+    sketch_reference.setLowerBound(0);
+    sketch_reference.setUpperBound(1);
+    sketchClass.getEStructuralFeatures().push(sketch_reference);
+    RiboPackage.Literals.SKETCH__REFERENCE = sketch_reference;
 
     // Create points feature
     const sketch_points = new BasicEReference();
@@ -777,6 +809,186 @@ export class RiboPackage extends BasicEPackage {
     faceSelectionClass.getEStructuralFeatures().push(faceSelection_z);
     RiboPackage.Literals.FACE_SELECTION__Z = faceSelection_z;
 
+    // Create Hole class
+    const holeClass = new BasicEClass();
+    holeClass.setName('Hole');
+    holeClass.setAbstract(false);
+    holeClass.setInterface(false);
+    this.getEClassifiers().push(holeClass);
+    holeClass.setEPackage(this);
+    RiboPackage.Literals.HOLE = holeClass;
+
+    // Create sketch feature
+    const hole_sketch = new BasicEReference();
+    hole_sketch.setContainment(false);
+    hole_sketch.setName('sketch');
+    hole_sketch.setLowerBound(0);
+    hole_sketch.setUpperBound(1);
+    holeClass.getEStructuralFeatures().push(hole_sketch);
+    RiboPackage.Literals.HOLE__SKETCH = hole_sketch;
+
+    // Create holeType feature
+    const hole_holeType = new BasicEAttribute();
+    hole_holeType.setName('holeType');
+    hole_holeType.setLowerBound(1);
+    hole_holeType.setUpperBound(1);
+    holeClass.getEStructuralFeatures().push(hole_holeType);
+    RiboPackage.Literals.HOLE__HOLE_TYPE = hole_holeType;
+
+    // Create preset feature
+    const hole_preset = new BasicEAttribute();
+    hole_preset.setName('preset');
+    hole_preset.setLowerBound(0);
+    hole_preset.setUpperBound(1);
+    holeClass.getEStructuralFeatures().push(hole_preset);
+    RiboPackage.Literals.HOLE__PRESET = hole_preset;
+
+    // Create diameter feature
+    const hole_diameter = new BasicEAttribute();
+    hole_diameter.setName('diameter');
+    hole_diameter.setLowerBound(1);
+    hole_diameter.setUpperBound(1);
+    holeClass.getEStructuralFeatures().push(hole_diameter);
+    RiboPackage.Literals.HOLE__DIAMETER = hole_diameter;
+
+    // Create depth feature
+    const hole_depth = new BasicEAttribute();
+    hole_depth.setName('depth');
+    hole_depth.setLowerBound(0);
+    hole_depth.setUpperBound(1);
+    holeClass.getEStructuralFeatures().push(hole_depth);
+    RiboPackage.Literals.HOLE__DEPTH = hole_depth;
+
+    // Create headDiameter feature
+    const hole_headDiameter = new BasicEAttribute();
+    hole_headDiameter.setName('headDiameter');
+    hole_headDiameter.setLowerBound(1);
+    hole_headDiameter.setUpperBound(1);
+    holeClass.getEStructuralFeatures().push(hole_headDiameter);
+    RiboPackage.Literals.HOLE__HEAD_DIAMETER = hole_headDiameter;
+
+    // Create headDepth feature
+    const hole_headDepth = new BasicEAttribute();
+    hole_headDepth.setName('headDepth');
+    hole_headDepth.setLowerBound(1);
+    hole_headDepth.setUpperBound(1);
+    holeClass.getEStructuralFeatures().push(hole_headDepth);
+    RiboPackage.Literals.HOLE__HEAD_DEPTH = hole_headDepth;
+
+    // Create countersinkAngle feature
+    const hole_countersinkAngle = new BasicEAttribute();
+    hole_countersinkAngle.setName('countersinkAngle');
+    hole_countersinkAngle.setLowerBound(1);
+    hole_countersinkAngle.setUpperBound(1);
+    holeClass.getEStructuralFeatures().push(hole_countersinkAngle);
+    RiboPackage.Literals.HOLE__COUNTERSINK_ANGLE = hole_countersinkAngle;
+
+    // Create reversed feature
+    const hole_reversed = new BasicEAttribute();
+    hole_reversed.setName('reversed');
+    hole_reversed.setLowerBound(1);
+    hole_reversed.setUpperBound(1);
+    holeClass.getEStructuralFeatures().push(hole_reversed);
+    RiboPackage.Literals.HOLE__REVERSED = hole_reversed;
+
+    // Create ConstructionPlane class
+    const constructionPlaneClass = new BasicEClass();
+    constructionPlaneClass.setName('ConstructionPlane');
+    constructionPlaneClass.setAbstract(false);
+    constructionPlaneClass.setInterface(false);
+    this.getEClassifiers().push(constructionPlaneClass);
+    constructionPlaneClass.setEPackage(this);
+    RiboPackage.Literals.CONSTRUCTION_PLANE = constructionPlaneClass;
+
+    // Create base feature
+    const constructionPlane_base = new BasicEAttribute();
+    constructionPlane_base.setName('base');
+    constructionPlane_base.setLowerBound(1);
+    constructionPlane_base.setUpperBound(1);
+    constructionPlaneClass.getEStructuralFeatures().push(constructionPlane_base);
+    RiboPackage.Literals.CONSTRUCTION_PLANE__BASE = constructionPlane_base;
+
+    // Create reference feature
+    const constructionPlane_reference = new BasicEReference();
+    constructionPlane_reference.setContainment(false);
+    constructionPlane_reference.setName('reference');
+    constructionPlane_reference.setLowerBound(0);
+    constructionPlane_reference.setUpperBound(1);
+    constructionPlaneClass.getEStructuralFeatures().push(constructionPlane_reference);
+    RiboPackage.Literals.CONSTRUCTION_PLANE__REFERENCE = constructionPlane_reference;
+
+    // Create originX feature
+    const constructionPlane_originX = new BasicEAttribute();
+    constructionPlane_originX.setName('originX');
+    constructionPlane_originX.setLowerBound(1);
+    constructionPlane_originX.setUpperBound(1);
+    constructionPlaneClass.getEStructuralFeatures().push(constructionPlane_originX);
+    RiboPackage.Literals.CONSTRUCTION_PLANE__ORIGIN_X = constructionPlane_originX;
+
+    // Create originY feature
+    const constructionPlane_originY = new BasicEAttribute();
+    constructionPlane_originY.setName('originY');
+    constructionPlane_originY.setLowerBound(1);
+    constructionPlane_originY.setUpperBound(1);
+    constructionPlaneClass.getEStructuralFeatures().push(constructionPlane_originY);
+    RiboPackage.Literals.CONSTRUCTION_PLANE__ORIGIN_Y = constructionPlane_originY;
+
+    // Create originZ feature
+    const constructionPlane_originZ = new BasicEAttribute();
+    constructionPlane_originZ.setName('originZ');
+    constructionPlane_originZ.setLowerBound(1);
+    constructionPlane_originZ.setUpperBound(1);
+    constructionPlaneClass.getEStructuralFeatures().push(constructionPlane_originZ);
+    RiboPackage.Literals.CONSTRUCTION_PLANE__ORIGIN_Z = constructionPlane_originZ;
+
+    // Create normalX feature
+    const constructionPlane_normalX = new BasicEAttribute();
+    constructionPlane_normalX.setName('normalX');
+    constructionPlane_normalX.setLowerBound(1);
+    constructionPlane_normalX.setUpperBound(1);
+    constructionPlaneClass.getEStructuralFeatures().push(constructionPlane_normalX);
+    RiboPackage.Literals.CONSTRUCTION_PLANE__NORMAL_X = constructionPlane_normalX;
+
+    // Create normalY feature
+    const constructionPlane_normalY = new BasicEAttribute();
+    constructionPlane_normalY.setName('normalY');
+    constructionPlane_normalY.setLowerBound(1);
+    constructionPlane_normalY.setUpperBound(1);
+    constructionPlaneClass.getEStructuralFeatures().push(constructionPlane_normalY);
+    RiboPackage.Literals.CONSTRUCTION_PLANE__NORMAL_Y = constructionPlane_normalY;
+
+    // Create normalZ feature
+    const constructionPlane_normalZ = new BasicEAttribute();
+    constructionPlane_normalZ.setName('normalZ');
+    constructionPlane_normalZ.setLowerBound(1);
+    constructionPlane_normalZ.setUpperBound(1);
+    constructionPlaneClass.getEStructuralFeatures().push(constructionPlane_normalZ);
+    RiboPackage.Literals.CONSTRUCTION_PLANE__NORMAL_Z = constructionPlane_normalZ;
+
+    // Create offset feature
+    const constructionPlane_offset = new BasicEAttribute();
+    constructionPlane_offset.setName('offset');
+    constructionPlane_offset.setLowerBound(1);
+    constructionPlane_offset.setUpperBound(1);
+    constructionPlaneClass.getEStructuralFeatures().push(constructionPlane_offset);
+    RiboPackage.Literals.CONSTRUCTION_PLANE__OFFSET = constructionPlane_offset;
+
+    // Create angle feature
+    const constructionPlane_angle = new BasicEAttribute();
+    constructionPlane_angle.setName('angle');
+    constructionPlane_angle.setLowerBound(1);
+    constructionPlane_angle.setUpperBound(1);
+    constructionPlaneClass.getEStructuralFeatures().push(constructionPlane_angle);
+    RiboPackage.Literals.CONSTRUCTION_PLANE__ANGLE = constructionPlane_angle;
+
+    // Create tiltAxis feature
+    const constructionPlane_tiltAxis = new BasicEAttribute();
+    constructionPlane_tiltAxis.setName('tiltAxis');
+    constructionPlane_tiltAxis.setLowerBound(1);
+    constructionPlane_tiltAxis.setUpperBound(1);
+    constructionPlaneClass.getEStructuralFeatures().push(constructionPlane_tiltAxis);
+    RiboPackage.Literals.CONSTRUCTION_PLANE__TILT_AXIS = constructionPlane_tiltAxis;
+
 
     // ============================================
     // Set ESuperTypes (must be done after all classes are created)
@@ -794,6 +1006,8 @@ export class RiboPackage extends BasicEPackage {
     (RiboPackage.Literals.FILLET as BasicEClass).getESuperTypes().push(RiboPackage.Literals.EDGE_FEATURE);
     (RiboPackage.Literals.CHAMFER as BasicEClass).getESuperTypes().push(RiboPackage.Literals.EDGE_FEATURE);
     (RiboPackage.Literals.SHELL as BasicEClass).getESuperTypes().push(RiboPackage.Literals.FEATURE);
+    (RiboPackage.Literals.HOLE as BasicEClass).getESuperTypes().push(RiboPackage.Literals.FEATURE);
+    (RiboPackage.Literals.CONSTRUCTION_PLANE as BasicEClass).getESuperTypes().push(RiboPackage.Literals.FEATURE);
 
     // ============================================
     // Set ETypes for all features (must be done after all classes are created).
@@ -810,6 +1024,7 @@ export class RiboPackage extends BasicEPackage {
     (RiboPackage.Literals.FEATURE__NAME as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
     (RiboPackage.Literals.FEATURE__SUPPRESSED as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EBoolean')!);
     (RiboPackage.Literals.SKETCH__OFFSET as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.SKETCH__REFERENCE as BasicEReference).setEType(RiboPackage.Literals.CONSTRUCTION_PLANE);
     (RiboPackage.Literals.SKETCH__POINTS as BasicEReference).setEType(RiboPackage.Literals.SKETCH_POINT);
     (RiboPackage.Literals.SKETCH__CURVES as BasicEReference).setEType(RiboPackage.Literals.SKETCH_CURVE);
     (RiboPackage.Literals.SKETCH__CONSTRAINTS as BasicEReference).setEType(RiboPackage.Literals.SKETCH_CONSTRAINT);
@@ -848,6 +1063,23 @@ export class RiboPackage extends BasicEPackage {
     (RiboPackage.Literals.FACE_SELECTION__X as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
     (RiboPackage.Literals.FACE_SELECTION__Y as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
     (RiboPackage.Literals.FACE_SELECTION__Z as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
+    (RiboPackage.Literals.HOLE__SKETCH as BasicEReference).setEType(RiboPackage.Literals.SKETCH);
+    (RiboPackage.Literals.HOLE__PRESET as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.HOLE__DIAMETER as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.HOLE__DEPTH as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.HOLE__HEAD_DIAMETER as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.HOLE__HEAD_DEPTH as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.HOLE__COUNTERSINK_ANGLE as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.HOLE__REVERSED as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EBoolean')!);
+    (RiboPackage.Literals.CONSTRUCTION_PLANE__REFERENCE as BasicEReference).setEType(RiboPackage.Literals.CONSTRUCTION_PLANE);
+    (RiboPackage.Literals.CONSTRUCTION_PLANE__ORIGIN_X as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
+    (RiboPackage.Literals.CONSTRUCTION_PLANE__ORIGIN_Y as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
+    (RiboPackage.Literals.CONSTRUCTION_PLANE__ORIGIN_Z as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
+    (RiboPackage.Literals.CONSTRUCTION_PLANE__NORMAL_X as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
+    (RiboPackage.Literals.CONSTRUCTION_PLANE__NORMAL_Y as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
+    (RiboPackage.Literals.CONSTRUCTION_PLANE__NORMAL_Z as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
+    (RiboPackage.Literals.CONSTRUCTION_PLANE__OFFSET as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.CONSTRUCTION_PLANE__ANGLE as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
 
     // ============================================
     // Register XML name mappings from ExtendedMetaData annotations

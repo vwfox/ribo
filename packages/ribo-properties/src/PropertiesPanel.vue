@@ -10,9 +10,11 @@ import {
   FeatureOperation,
   SketchAxis,
   SketchPlane,
+  isConstructionPlane,
   isEdgeFeature,
   isExtrude,
   isFillet,
+  isHole,
   isLine,
   isShell,
   isParameter,
@@ -22,7 +24,10 @@ import {
   type Sketch,
   type SketchLine,
 } from 'ribo-model'
+import ToggleSwitch from 'primevue/toggleswitch'
+import { HoleType, type Hole } from 'ribo-model'
 import ExpressionField from './ExpressionField.vue'
+import { HOLE_PRESETS } from './holePresets'
 import './fields.css'
 
 const props = defineProps<{ document: DocumentService; editSketch: (sketch: Sketch) => void }>()
@@ -98,6 +103,75 @@ const profileInfo = computed(() => {
     regions,
   }
 })
+
+const PLANE_BASES: Record<string, string> = {
+  XY: 'Ursprungsebene XY',
+  XZ: 'Ursprungsebene XZ',
+  YZ: 'Ursprungsebene YZ',
+  Face: 'Körperfläche',
+  Plane: 'andere Konstruktionsebene',
+}
+
+const TILT_AXES = [
+  { label: 'um X', value: SketchAxis.X },
+  { label: 'um Y', value: SketchAxis.Y },
+]
+
+const HOLE_TYPES = [
+  { label: 'Einfach', value: HoleType.Simple },
+  { label: 'Senkbohrung', value: HoleType.Counterbore },
+  { label: 'Senkung', value: HoleType.Countersink },
+]
+
+const presetOptions = [
+  { label: 'Eigene Werte', value: '' },
+  ...HOLE_PRESETS.map((p) => ({ label: p.label, value: p.label, group: p.group })),
+]
+
+/** Sketches a hole may use: the ones before it */
+const holeSketches = computed(() => {
+  void props.document.revision.value
+  const feature = selected.value
+  return isHole(feature) ? props.document.sketchesBefore(feature) : []
+})
+const holeSketchOptions = computed(() => holeSketches.value.map((sketch, index) => ({ label: sketch.name, value: index })))
+const holeSketchIndex = computed(() => {
+  void props.document.revision.value
+  const feature = selected.value
+  if (!isHole(feature) || !feature.sketch) return undefined
+  const index = holeSketches.value.indexOf(feature.sketch)
+  return index < 0 ? undefined : index
+})
+
+function setHoleSketch(index: number) {
+  const feature = selected.value
+  if (isHole(feature)) feature.sketch = holeSketches.value[index]!
+}
+
+const holeCount = computed(() => {
+  void props.document.revision.value
+  const feature = selected.value
+  if (!isHole(feature) || !feature.sketch) return 0
+  const index = design.value.features.indexOf(feature)
+  const planned = props.document.plan.value.features.find((f) => f.kind === 'hole' && f.index === index)
+  return planned?.kind === 'hole' ? planned.centers.length : 0
+})
+
+/** Fills the hole's values from a preset */
+function applyPreset(label: string) {
+  const hole = selected.value as Hole
+  props.document.history.record('Bohrungsvorlage', () => {
+    hole.preset = label
+    const preset = HOLE_PRESETS.find((p) => p.label === label)
+    if (!preset) return
+    hole.holeType = preset.type
+    hole.diameter = preset.diameter
+    hole.depth = preset.depth ?? ''
+    if (preset.headDiameter) hole.headDiameter = preset.headDiameter
+    if (preset.headDepth) hole.headDepth = preset.headDepth
+    if (preset.countersinkAngle) hole.countersinkAngle = preset.countersinkAngle
+  })
+}
 
 /** Removes all picked edges or faces of the selected fillet, chamfer or shell */
 function clearPicks() {
@@ -198,7 +272,14 @@ function setAxis(value: string) {
         <InputText :model-value="selected.name" size="small" fluid @update:model-value="selected.name = $event ?? ''" />
       </label>
       <Button label="Skizze bearbeiten" icon="pi pi-pencil" size="small" @click="editSketch(selected)" />
-      <div class="ribo-field">
+      <div v-if="selected.reference" class="ribo-field">
+        <span class="ribo-field-label">Ebene</span>
+        <div class="ribo-profile-info">
+          <span><i class="pi pi-clone" /> {{ selected.reference.name }}</span>
+          <Button label="Ebene zeigen" size="small" text @click="document.select(selected.reference)" />
+        </div>
+      </div>
+      <div v-else class="ribo-field">
         <span class="ribo-field-label">Ebene</span>
         <Select
           :model-value="selected.plane"
@@ -334,9 +415,99 @@ function setAxis(value: string) {
       </div>
     </template>
 
+    <!-- Construction plane -->
+    <template v-else-if="isConstructionPlane(selected)">
+      <label class="ribo-field">
+        <span class="ribo-field-label">Name</span>
+        <InputText :model-value="selected.name" size="small" fluid @update:model-value="selected.name = $event ?? ''" />
+      </label>
+      <div class="ribo-field">
+        <span class="ribo-field-label">Bezug</span>
+        <span>{{ PLANE_BASES[selected.base] }}{{ selected.base === 'Plane' && selected.reference ? `: ${selected.reference.name}` : '' }}</span>
+      </div>
+      <ExpressionField v-model="selected.offset" label="Versatz entlang der Normalen" unit="mm" :document="document" />
+      <ExpressionField v-model="selected.angle" label="Neigung" unit="°" :document="document" />
+      <div class="ribo-field">
+        <span class="ribo-field-label">Neigungsachse</span>
+        <SelectButton
+          :model-value="selected.tiltAxis"
+          :options="TILT_AXES"
+          option-label="label"
+          option-value="value"
+          :allow-empty="false"
+          size="small"
+          @update:model-value="selected.tiltAxis = $event"
+        />
+      </div>
+      <small class="ribo-field-hint">Neue Skizze auf dieser Ebene: „Skizze erstellen“ und die Ebene im Ansichtsfenster anklicken.</small>
+    </template>
+
+    <!-- Hole -->
+    <template v-else-if="isHole(selected)">
+      <label class="ribo-field">
+        <span class="ribo-field-label">Name</span>
+        <InputText :model-value="selected.name" size="small" fluid @update:model-value="selected.name = $event ?? ''" />
+      </label>
+      <div class="ribo-field">
+        <span class="ribo-field-label">Skizze mit den Bohrpunkten</span>
+        <Select
+          :model-value="holeSketchIndex"
+          :options="holeSketchOptions"
+          option-label="label"
+          option-value="value"
+          placeholder="Skizze wählen"
+          size="small"
+          fluid
+          @update:model-value="setHoleSketch"
+        />
+        <small class="ribo-field-hint">{{ holeCount }} Bohrung(en) – an freien Punkten und Kreismittelpunkten der Skizze</small>
+      </div>
+      <div class="ribo-field">
+        <span class="ribo-field-label">Vorlage</span>
+        <Select
+          :model-value="selected.preset ?? ''"
+          :options="presetOptions"
+          option-label="label"
+          option-value="value"
+          filter
+          size="small"
+          fluid
+          @update:model-value="applyPreset"
+        />
+      </div>
+      <div class="ribo-field">
+        <span class="ribo-field-label">Art</span>
+        <SelectButton
+          :model-value="selected.holeType"
+          :options="HOLE_TYPES"
+          option-label="label"
+          option-value="value"
+          :allow-empty="false"
+          size="small"
+          @update:model-value="selected.holeType = $event"
+        />
+      </div>
+      <ExpressionField v-model="selected.diameter" label="Durchmesser" unit="mm" :document="document" />
+      <ExpressionField v-model="selected.depth" label="Tiefe" unit="mm" empty-hint="leer = durch alles" :document="document" />
+      <template v-if="selected.holeType !== 'Simple'">
+        <ExpressionField
+          v-model="selected.headDiameter"
+          :label="selected.holeType === 'Countersink' ? 'Senkdurchmesser' : 'Kopfdurchmesser'"
+          unit="mm"
+          :document="document"
+        />
+        <ExpressionField v-if="selected.holeType === 'Counterbore'" v-model="selected.headDepth" label="Senktiefe" unit="mm" :document="document" />
+        <ExpressionField v-else v-model="selected.countersinkAngle" label="Senkwinkel" unit="°" :document="document" />
+      </template>
+      <label class="ribo-switch">
+        <ToggleSwitch :model-value="selected.reversed" @update:model-value="selected.reversed = $event" />
+        <span>Richtung umkehren</span>
+      </label>
+    </template>
+
     <div v-if="selected" class="ribo-actions">
       <Button
-        v-if="isProfileFeature(selected) || isEdgeFeature(selected) || isShell(selected)"
+        v-if="isProfileFeature(selected) || isEdgeFeature(selected) || isShell(selected) || isHole(selected)"
         v-tooltip.bottom="'Änderungen sind übernommen – schließt den Schritt (Enter)'"
         label="OK"
         icon="pi pi-check"
@@ -360,6 +531,12 @@ function setAxis(value: string) {
   display: flex;
   flex-wrap: wrap;
   gap: 0.375rem;
+}
+
+.ribo-switch {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .ribo-profile-info {

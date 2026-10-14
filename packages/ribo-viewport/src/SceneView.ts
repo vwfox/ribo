@@ -3,9 +3,10 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { LineSegments2 } from 'three/addons/lines/LineSegments2.js'
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js'
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js'
+import { originFrame } from 'ribo-geometry'
 import {
-  PLANE_BASIS,
   type AnalysisLayer,
+  type Frame,
   type BodyMesh,
   type BuildPlan,
   type PlanCurve,
@@ -115,18 +116,16 @@ function distanceToFace(p: THREE.Vector3, face: FaceTriangles): number {
 const v3 = (p: readonly number[]) => new THREE.Vector3(p[0], p[1], p[2])
 
 /** Sketch coordinates to world coordinates */
-export function sketchToWorld(plane: PlanPlane, offset: number, [u, v]: Vec2): THREE.Vector3 {
-  const { x, y, normal } = PLANE_BASIS[plane]
-  return v3(x)
-    .multiplyScalar(u)
-    .add(v3(y).multiplyScalar(v))
-    .add(v3(normal).multiplyScalar(offset))
+export function sketchToWorld(frame: Frame, [u, v]: Vec2): THREE.Vector3 {
+  return v3(frame.origin)
+    .add(v3(frame.x).multiplyScalar(u))
+    .add(v3(frame.y).multiplyScalar(v))
 }
 
 /** World coordinates (on or near the plane) to sketch coordinates */
-export function worldToSketch(plane: PlanPlane, point: THREE.Vector3): Vec2 {
-  const { x, y } = PLANE_BASIS[plane]
-  return [point.dot(v3(x)), point.dot(v3(y))]
+export function worldToSketch(frame: Frame, point: THREE.Vector3): Vec2 {
+  const d = point.clone().sub(v3(frame.origin))
+  return [d.dot(v3(frame.x)), d.dot(v3(frame.y))]
 }
 
 /** Polyline points of a curve, for display */
@@ -154,10 +153,9 @@ function regionShape(region: PlanRegion): THREE.Shape {
 }
 
 /** Matrix that places plane-local (u, v, 0) shapes onto a sketch plane */
-function planeMatrix(plane: PlanPlane, offset: number): THREE.Matrix4 {
-  const { x, y, normal } = PLANE_BASIS[plane]
-  const m = new THREE.Matrix4().makeBasis(v3(x), v3(y), v3(normal))
-  m.setPosition(v3(normal).multiplyScalar(offset))
+function planeMatrix(frame: Frame): THREE.Matrix4 {
+  const m = new THREE.Matrix4().makeBasis(v3(frame.x), v3(frame.y), v3(frame.normal))
+  m.setPosition(v3(frame.origin))
   return m
 }
 
@@ -205,6 +203,7 @@ export class SceneView {
   private readonly hover = new THREE.Group()
   private readonly grid = new THREE.Group()
   private readonly analysis = new THREE.Group()
+  private readonly constructionPlanes = new THREE.Group()
   private readonly analysisLayers = new Map<string, THREE.Mesh>()
   private bed: Vec3 = [220, 220, 250]
   private readonly axes = new THREE.AxesHelper(25)
@@ -264,7 +263,7 @@ export class SceneView {
     this.ortho.add(sun.clone())
     this.scene.add(this.camera, this.ortho)
 
-    this.scene.add(this.grid, this.bodies, this.regions, this.sketches, this.pickers, this.ghost, this.picked, this.hover, this.analysis, this.axes)
+    this.scene.add(this.grid, this.bodies, this.regions, this.sketches, this.pickers, this.ghost, this.picked, this.hover, this.analysis, this.constructionPlanes, this.axes)
     this.buildGrid()
 
     const canvas = this.renderer.domElement
@@ -291,7 +290,7 @@ export class SceneView {
     this.input.removeEventListener('pointerup', this.onPointerUp)
     this.input.removeEventListener('wheel', this.onWheel)
     this.input.removeEventListener('contextmenu', this.onContextMenu)
-    for (const group of [this.bodies, this.sketches, this.regions, this.pickers, this.ghost, this.picked, this.hover, this.analysis, this.grid]) clearGroup(group)
+    for (const group of [this.bodies, this.sketches, this.regions, this.pickers, this.ghost, this.picked, this.hover, this.analysis, this.constructionPlanes, this.grid]) clearGroup(group)
     this.renderer.dispose()
     this.renderer.domElement.remove()
   }
@@ -562,7 +561,7 @@ export class SceneView {
       if (feature.kind !== 'sketch' || !visible.has(feature.index)) continue
       const highlight = feature.index === highlighted
       for (const curve of feature.curves) {
-        const points = curvePoints(curve).map((p) => sketchToWorld(feature.plane, feature.offset, p))
+        const points = curvePoints(curve).map((p) => sketchToWorld(feature.frame, p))
         const geometry = new THREE.BufferGeometry().setFromPoints(points)
         const color = highlight ? this.colors.highlight : curve.construction ? this.colors.construction : this.colors.sketch
         const material = curve.construction
@@ -588,7 +587,7 @@ export class SceneView {
       this.requestRender()
       return
     }
-    const matrix = planeMatrix(sketch.plane, sketch.offset)
+    const matrix = planeMatrix(sketch.frame)
     sketch.regions.forEach((region, index) => {
       const geometry = new THREE.ShapeGeometry(regionShape(region))
       const isPicked = picked.has(index)
@@ -615,7 +614,7 @@ export class SceneView {
           highlight.applyMatrix4(matrix)
           highlight.renderOrder = 6
           highlight.userData.sharedGeometry = true
-          return { kind: 'region', point: worldToSketch(sketch.plane, hit.point), highlight }
+          return { kind: 'region', point: worldToSketch(sketch.frame, hit.point), highlight }
         },
       })
     })
@@ -638,9 +637,9 @@ export class SceneView {
         geometry,
         new THREE.MeshBasicMaterial({ color: this.colors.plane, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false }),
       )
-      quad.applyMatrix4(planeMatrix(plane, 0))
+      quad.applyMatrix4(planeMatrix(originFrame(plane)))
       const outline = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({ color: this.colors.plane }))
-      outline.applyMatrix4(planeMatrix(plane, 0))
+      outline.applyMatrix4(planeMatrix(originFrame(plane)))
       this.pickers.add(quad, outline)
       this.pickTargets.push({
         object: quad,
@@ -649,14 +648,30 @@ export class SceneView {
             geometry,
             new THREE.MeshBasicMaterial({ color: this.colors.highlight, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }),
           )
-          highlight.applyMatrix4(planeMatrix(plane, 0))
+          highlight.applyMatrix4(planeMatrix(originFrame(plane)))
           highlight.userData.sharedGeometry = true
-          return { kind: 'plane', pick: { plane, offset: 0 }, highlight }
+          return { kind: 'plane', pick: { kind: 'origin', plane, offset: 0 }, highlight }
         },
       })
     }
     for (const { mesh, data } of this.bodyMeshes) {
       this.pickTargets.push({ object: mesh, resolve: (hit) => this.resolveFace(data, hit) })
+    }
+    for (const quad of this.constructionPlanes.children) {
+      if (!(quad instanceof THREE.Mesh)) continue
+      const index = quad.userData.planeIndex as number
+      this.pickTargets.push({
+        object: quad,
+        resolve: () => {
+          const highlight = new THREE.Mesh(
+            quad.geometry,
+            new THREE.MeshBasicMaterial({ color: this.colors.highlight, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false }),
+          )
+          highlight.applyMatrix4(quad.matrix)
+          highlight.userData.sharedGeometry = true
+          return { kind: 'plane', pick: { kind: 'construction', index }, highlight }
+        },
+      })
     }
     this.requestRender()
     return new Promise((resolve) => {
@@ -686,11 +701,13 @@ export class SceneView {
     if (!face?.plane) return undefined
     const [nx, ny, nz] = face.plane.normal
     const [ox, oy, oz] = face.plane.origin
-    let pick: PlanePick | undefined
-    if (Math.abs(nz) > 0.9999) pick = { plane: 'XY', offset: oz }
-    else if (Math.abs(ny) > 0.9999) pick = { plane: 'XZ', offset: -oy }
-    else if (Math.abs(nx) > 0.9999) pick = { plane: 'YZ', offset: ox }
-    if (!pick) return undefined
+    const round = (value: number) => Math.round(value * 1e6) / 1e6
+    // Faces parallel to an origin plane become that plane with an offset; others a plane of their own
+    let pick: PlanePick
+    if (Math.abs(nz) > 0.9999) pick = { kind: 'origin', plane: 'XY', offset: round(oz) }
+    else if (Math.abs(ny) > 0.9999) pick = { kind: 'origin', plane: 'XZ', offset: round(-oy) }
+    else if (Math.abs(nx) > 0.9999) pick = { kind: 'origin', plane: 'YZ', offset: round(ox) }
+    else pick = { kind: 'face', origin: hit.point.toArray() as Vec3, normal: [nx, ny, nz] }
 
     const positions = new Float32Array(face.count * 3)
     for (let i = 0; i < face.count; i++) {
@@ -704,7 +721,7 @@ export class SceneView {
       new THREE.MeshBasicMaterial({ color: this.colors.highlight, transparent: true, opacity: 0.6, depthTest: false, side: THREE.DoubleSide }),
     )
     highlight.renderOrder = 7
-    return { kind: 'plane', pick: { ...pick, offset: Math.round(pick.offset * 1e6) / 1e6 }, highlight }
+    return { kind: 'plane', pick, highlight }
   }
 
   // ---------------------------------------------------------------- camera
@@ -729,22 +746,21 @@ export class SceneView {
   }
 
   /** Turns to look straight at the plane, then switches to the flat 2D view */
-  enterSketchView(plane: PlanPlane, offset: number): void {
+  enterSketchView(frame: Frame): void {
     if (!this.view2d) this.saved3d = { position: this.camera.position.clone(), target: this.controls.target.clone() }
-    const { normal } = PLANE_BASIS[plane]
-    const n = v3(normal)
+    const n = v3(frame.normal)
     // Keep looking at the same spot, moved onto the plane
     const target = this.controls.target.clone()
-    target.sub(n.clone().multiplyScalar(target.dot(n) - offset))
+    target.sub(n.clone().multiplyScalar(target.clone().sub(v3(frame.origin)).dot(n)))
     const distance = this.camera.position.distanceTo(this.controls.target)
     this.controls.enabled = false
     this.grid.visible = false
-    this.animateTo(target.clone().add(n.clone().multiplyScalar(distance)), target, PLANE_BASIS[plane].y, () => {
+    this.constructionPlanes.visible = false
+    this.animateTo(target.clone().add(n.clone().multiplyScalar(distance)), target, frame.y, () => {
       const visibleHeight = 2 * distance * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))
       this.view2d = {
-        plane,
-        offset,
-        center: worldToSketch(plane, target),
+        frame,
+        center: worldToSketch(frame, target),
         scale: this.height / visibleHeight,
         width: this.width,
         height: this.height,
@@ -755,14 +771,15 @@ export class SceneView {
 
   exitSketchView(): void {
     if (!this.view2d && !this.saved3d) return
-    const plane = this.view2d?.plane
+    const frame = this.view2d?.frame
     this.view2d = undefined
     this.callbacks.onSketchView(undefined)
     this.grid.visible = true
+    this.constructionPlanes.visible = true
     this.controls.enabled = true
     const saved = this.saved3d
     this.saved3d = undefined
-    if (plane) this.camera.up.set(...(PLANE_BASIS[plane].y as [number, number, number]))
+    if (frame) this.camera.up.set(...frame.y)
     if (saved) this.animateTo(saved.position, saved.target)
     else this.requestRender()
   }
@@ -776,7 +793,7 @@ export class SceneView {
       view.center = [0, 0]
       view.scale = Math.min(this.width, this.height) / 120
     } else {
-      const corners = [box.min, box.max].map((p) => worldToSketch(view.plane, p))
+      const corners = [box.min, box.max].map((p) => worldToSketch(view.frame, p))
       const w = Math.abs(corners[1]![0] - corners[0]![0]) || 20
       const h = Math.abs(corners[1]![1] - corners[0]![1]) || 20
       view.center = [(corners[0]![0] + corners[1]![0]) / 2, (corners[0]![1] + corners[1]![1]) / 2]
@@ -801,8 +818,8 @@ export class SceneView {
     if (!view) return
     view.width = this.width
     view.height = this.height
-    const { y, normal } = PLANE_BASIS[view.plane]
-    const center = sketchToWorld(view.plane, view.offset, view.center)
+    const { y, normal } = view.frame
+    const center = sketchToWorld(view.frame, view.center)
     this.ortho.position.copy(center).add(v3(normal).multiplyScalar(1000))
     this.ortho.up.copy(v3(y))
     this.ortho.lookAt(center)
@@ -931,6 +948,26 @@ export class SceneView {
     this.bed = size
     clearGroup(this.grid)
     this.buildGrid()
+    this.requestRender()
+  }
+
+  /** Construction planes as translucent squares; the highlighted one stronger */
+  setConstructionPlanes(planes: { index: number; frame: Frame }[], highlighted?: number): void {
+    clearGroup(this.constructionPlanes)
+    const size = 80
+    for (const { index, frame } of planes) {
+      const geometry = new THREE.PlaneGeometry(size, size)
+      const strong = index === highlighted
+      const quad = new THREE.Mesh(
+        geometry,
+        new THREE.MeshBasicMaterial({ color: strong ? this.colors.highlight : this.colors.plane, transparent: true, opacity: strong ? 0.3 : 0.12, side: THREE.DoubleSide, depthWrite: false }),
+      )
+      quad.applyMatrix4(planeMatrix(frame))
+      quad.userData.planeIndex = index
+      const outline = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({ color: strong ? this.colors.highlight : this.colors.plane }))
+      outline.applyMatrix4(planeMatrix(frame))
+      this.constructionPlanes.add(quad, outline)
+    }
     this.requestRender()
   }
 

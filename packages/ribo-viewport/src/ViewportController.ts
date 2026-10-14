@@ -1,5 +1,5 @@
 import { markRaw, ref, shallowReactive, shallowRef, type Component } from 'vue'
-import type { AnalysisLayer, PlanePick, PlanPlane, SketchView, Vec3, ViewportService } from 'ribo-contracts'
+import type { AnalysisLayer, Frame, PlanePick, SketchView, Vec3, ViewportService } from 'ribo-contracts'
 import type { SceneView } from './SceneView'
 
 /**
@@ -14,13 +14,13 @@ export class ViewportController implements ViewportService {
   private scene: SceneView | undefined
   private bed: Vec3 = [220, 220, 250]
   private readonly layers = new Map<string, AnalysisLayer>()
-  private pendingSketch: { plane: PlanPlane; offset: number } | undefined
+  private pendingSketch: Frame | undefined
 
   attach(scene: SceneView): void {
     this.scene = scene
     scene.setBed(this.bed)
     for (const layer of this.layers.values()) scene.setAnalysisLayer(layer)
-    if (this.pendingSketch) scene.enterSketchView(this.pendingSketch.plane, this.pendingSketch.offset)
+    if (this.pendingSketch) scene.enterSketchView(this.pendingSketch)
   }
 
   /** The scene reports its 2D view here */
@@ -33,10 +33,10 @@ export class ViewportController implements ViewportService {
     this.sketchView.value = undefined
   }
 
-  enterSketchView(plane: PlanPlane, offset: number): void {
+  enterSketchView(frame: Frame): void {
     this.mode.value = 'sketch'
-    this.pendingSketch = { plane, offset }
-    this.scene?.enterSketchView(plane, offset)
+    this.pendingSketch = frame
+    this.scene?.enterSketchView(frame)
   }
 
   exitSketchView(): void {

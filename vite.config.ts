@@ -108,12 +108,42 @@ function serveTsmPlugins(): Plugin {
   }
 }
 
+/**
+ * Production build of the modules.
+ *
+ * Every module becomes an entry of the one build, emitted as
+ * plugins/<id>/index.js next to a manifest.json pointing at it, plus the
+ * repository index - the same /plugins layout the dev server serves. One
+ * build means one copy of vue, @emfts/core and the other shared libraries.
+ */
+function emitTsmPlugins(): Plugin {
+  return {
+    name: 'emit-tsm-plugins',
+    apply: 'build',
+    generateBundle() {
+      for (const [moduleId, { folder }] of tsmModules) {
+        const manifest = JSON.parse(fs.readFileSync(path.join(folder, 'manifest.json'), 'utf-8'))
+        this.emitFile({
+          type: 'asset',
+          fileName: `plugins/${moduleId}/manifest.json`,
+          source: JSON.stringify({ ...manifest, entry: 'index.js' }, null, 2),
+        })
+      }
+      this.emitFile({
+        type: 'asset',
+        fileName: 'plugins/index.json',
+        source: JSON.stringify({ name: 'ribo modules', version: '1.0.0', modules: [...tsmModules.keys()] }, null, 2),
+      })
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   define: {
     __SHARED_LIBRARY_VERSIONS__: JSON.stringify(sharedLibraryVersions),
   },
-  plugins: [vue(), tsmPlugin({ useRenderChunk: false }), serveTsmPlugins()],
+  plugins: [vue(), tsmPlugin({ useRenderChunk: false }), serveTsmPlugins(), emitTsmPlugins()],
   resolve: {
     alias: [
       { find: '@', replacement: fileURLToPath(new URL('./src', import.meta.url)) },
@@ -148,6 +178,17 @@ export default defineConfig({
   build: {
     modulePreload: false,
     target: 'esnext',
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        ...Object.fromEntries([...tsmModules.entries()].map(([moduleId, { folder, entry }]) => [`plugins/${moduleId}/index`, path.join(folder, entry)])),
+      },
+      // Module entries are loaded by TSM, which calls their activate/deactivate exports
+      preserveEntrySignatures: 'exports-only',
+      output: {
+        entryFileNames: (chunk) => (chunk.name.startsWith('plugins/') ? '[name].js' : 'assets/[name]-[hash].js'),
+      },
+    },
   },
   server: {
     port: 5174,

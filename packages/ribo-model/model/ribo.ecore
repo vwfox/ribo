@@ -44,6 +44,11 @@
     </eAnnotations>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="plane" lowerBound="1" eType="#//SketchPlane" defaultValueLiteral="XY"/>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="offset" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="0"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="reference" eType="#//ConstructionPlane">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="When set the sketch lies on this construction plane (plus offset) instead of an origin plane."/>
+      </eAnnotations>
+    </eStructuralFeatures>
     <eStructuralFeatures xsi:type="ecore:EReference" name="points" upperBound="-1" eType="#//SketchPoint" containment="true"/>
     <eStructuralFeatures xsi:type="ecore:EReference" name="curves" upperBound="-1" eType="#//SketchCurve" containment="true"/>
     <eStructuralFeatures xsi:type="ecore:EReference" name="constraints" upperBound="-1" eType="#//SketchConstraint" containment="true"/>
@@ -230,6 +235,58 @@
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="x" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0"/>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="y" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0"/>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="z" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0"/>
+  </eClassifiers>
+
+  <!-- Holes -->
+  <eClassifiers xsi:type="ecore:EClass" name="Hole" eSuperTypes="#//Feature">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="Drills holes into the bodies at the free points and circle centres of a sketch, against the sketch normal (or along it when reversed)."/>
+    </eAnnotations>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="sketch" eType="#//Sketch"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="holeType" lowerBound="1" eType="#//HoleType" defaultValueLiteral="Simple"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="preset" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="diameter" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="3.4"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="depth" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Empty: through all."/>
+      </eAnnotations>
+    </eStructuralFeatures>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="headDiameter" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="6.5"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="headDepth" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="3.3"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="countersinkAngle" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="90"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="reversed" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" defaultValueLiteral="false"/>
+  </eClassifiers>
+
+  <eClassifiers xsi:type="ecore:EEnum" name="HoleType">
+    <eLiterals name="Simple"/>
+    <eLiterals name="Counterbore" value="1"/>
+    <eLiterals name="Countersink" value="2"/>
+  </eClassifiers>
+
+  <!-- Construction planes -->
+  <eClassifiers xsi:type="ecore:EClass" name="ConstructionPlane" eSuperTypes="#//Feature">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="A plane to sketch on: an origin plane, a picked face or another construction plane, moved along its normal by offset and tilted by angle around its own X or Y axis."/>
+    </eAnnotations>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="base" lowerBound="1" eType="#//PlaneBase" defaultValueLiteral="XY"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="reference" eType="#//ConstructionPlane"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="originX" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="originY" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="originZ" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="normalX" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="normalY" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="normalZ" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="1"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="offset" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="0"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="angle" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="0"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="tiltAxis" lowerBound="1" eType="#//SketchAxis" defaultValueLiteral="X"/>
+  </eClassifiers>
+
+  <eClassifiers xsi:type="ecore:EEnum" name="PlaneBase">
+    <eLiterals name="XY"/>
+    <eLiterals name="XZ" value="1"/>
+    <eLiterals name="YZ" value="2"/>
+    <eLiterals name="Face" value="3"/>
+    <eLiterals name="Plane" value="4"/>
   </eClassifiers>
 
 </ecore:EPackage>

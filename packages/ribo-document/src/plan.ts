@@ -9,20 +9,24 @@ import {
   isChamfer,
   isCircle,
   isExtrude,
+  isConstructionPlane,
   isFillet,
+  isHole,
   isShell,
   isLine,
   isProfileFeature,
   isRevolve,
   isSketch,
+  type ConstructionPlane,
   type Design,
   type Parameter,
   type ProfileFeature,
   type Sketch,
+  type SketchCircle,
 } from 'ribo-model'
-import type { BuildPlan, FeatureProblem, PlanCurve, PlanFeature, PlanOperation, PlanRegion, Vec2, Vec3 } from 'ribo-contracts'
+import type { BuildPlan, FeatureProblem, Frame, PlanCurve, PlanFeature, PlanOperation, PlanRegion, Vec2, Vec3 } from 'ribo-contracts'
 import { evaluateExpression, type Scope } from './expression'
-import { findRegions, regionAt } from 'ribo-geometry'
+import { findRegions, frameFromNormal, offsetFrame, originFrame, regionAt, tiltFrame } from 'ribo-geometry'
 
 /**
  * Evaluates the parameters in declaration order. A parameter can use the ones
@@ -75,6 +79,44 @@ export function sketchCurves(sketch: Sketch): PlanCurve[] {
   return curves
 }
 
+type Evaluate = (label: string, source: string | undefined) => number
+
+/** The coordinate system of a construction plane, following its references */
+export function constructionFrame(plane: ConstructionPlane, evaluate: Evaluate, seen = new Set<ConstructionPlane>()): Frame {
+  if (seen.has(plane)) throw new Error('Die Ebenen beziehen sich im Kreis aufeinander')
+  seen.add(plane)
+  let base: Frame
+  switch (plane.base) {
+    case 'Face':
+      base = frameFromNormal([plane.originX, plane.originY, plane.originZ], [plane.normalX, plane.normalY, plane.normalZ])
+      break
+    case 'Plane':
+      if (!plane.reference) throw new Error('Keine Bezugsebene gewählt')
+      base = constructionFrame(plane.reference, evaluate, seen)
+      break
+    default:
+      base = originFrame(plane.base ?? 'XY')
+  }
+  const tilted = tiltFrame(base, plane.tiltAxis ?? 'X', evaluate('Winkel', plane.angle))
+  return offsetFrame(tilted, evaluate('Versatz', plane.offset))
+}
+
+/** The coordinate system of a sketch: its construction plane, or an origin plane, plus its offset */
+export function sketchFrame(sketch: Sketch, evaluate: Evaluate): Frame {
+  const offset = evaluate('Versatz', sketch.offset)
+  if (sketch.reference) return offsetFrame(constructionFrame(sketch.reference, evaluate), offset)
+  return originFrame(sketch.plane ?? 'XY', offset)
+}
+
+/** Where a hole feature drills: free points (on no curve) and circle centres */
+export function holeCenters(sketch: Sketch): Vec2[] {
+  const curves = sketch.curves.toArray()
+  const onCurves = new Set(curves.flatMap((c) => (isLine(c) ? [c.start, c.end] : isArc(c) ? [c.center, c.start, c.end] : [])))
+  const free = sketch.points.toArray().filter((p) => !p.origin && !onCurves.has(p) && !curves.some((c) => isCircle(c) && c.center === p))
+  const centres = curves.filter((c): c is SketchCircle => isCircle(c) && !c.construction).map((c) => c.center)
+  return [...free, ...centres].map((p): Vec2 => [p.x, p.y])
+}
+
 /** Regions of the sketch, from its non-construction curves */
 export function sketchRegions(curves: PlanCurve[]): PlanRegion[] {
   return findRegions(curves.filter((c) => !c.construction))
@@ -103,12 +145,14 @@ export function compilePlan(design: Design): CompiledPlan {
   const end = rollback >= 0 ? Math.min(rollback, features.length) : features.length
   const planned: BuildPlan['features'] = []
   const problems: FeatureProblem[] = []
+  /** Construction planes that made it into the plan */
+  const planes = new Set<ConstructionPlane>()
   /** Sketches that made it into the plan */
   const sketchPlans = new Map<Sketch, Extract<PlanFeature, { kind: 'sketch' }>>()
 
   features.slice(0, end).forEach((feature, index) => {
     if (feature.suppressed) return
-    const evaluate = (label: string, source: string | undefined) => {
+    const evaluate: Evaluate = (label, source) => {
       try {
         return evaluateExpression(source ?? '', scope)
       } catch (error) {
@@ -116,13 +160,23 @@ export function compilePlan(design: Design): CompiledPlan {
       }
     }
     try {
+      if (isConstructionPlane(feature)) {
+        if (feature.base === 'Plane' && feature.reference && !planes.has(feature.reference)) {
+          throw new Error('Die Bezugsebene ist unterdrückt, fehlerhaft oder liegt später')
+        }
+        planned.push({ kind: 'plane', index, frame: constructionFrame(feature, evaluate) })
+        planes.add(feature)
+        return
+      }
       if (isSketch(feature)) {
+        if (feature.reference && !planes.has(feature.reference)) {
+          throw new Error('Die Ebene der Skizze ist unterdrückt, fehlerhaft oder liegt später')
+        }
         const curves = sketchCurves(feature)
         const sketchPlan = {
           kind: 'sketch' as const,
           index,
-          plane: feature.plane ?? 'XY',
-          offset: evaluate('Versatz', feature.offset),
+          frame: sketchFrame(feature, evaluate),
           curves,
           regions: sketchRegions(curves),
         }
@@ -135,6 +189,34 @@ export function compilePlan(design: Design): CompiledPlan {
         if (edges.length === 0) throw new Error('Keine Kante gewählt – Kanten im Ansichtsfenster anklicken')
         if (isFillet(feature)) planned.push({ kind: 'fillet', index, edges, radius: evaluate('Radius', feature.radius) })
         else planned.push({ kind: 'chamfer', index, edges, distance: evaluate('Abstand', feature.distance) })
+        return
+      }
+      if (isHole(feature)) {
+        const sketch = feature.sketch
+        if (!sketch) throw new Error('Keine Skizze gewählt')
+        const sketchPlan = sketchPlans.get(sketch)
+        if (!sketchPlan) throw new Error('Die Skizze ist unterdrückt, fehlerhaft oder liegt später')
+        const centers = holeCenters(sketch)
+        if (centers.length === 0) throw new Error('Die Skizze enthält keine Punkte oder Kreise für Bohrungen')
+        const diameter = evaluate('Durchmesser', feature.diameter)
+        if (diameter <= 0) throw new Error('Durchmesser muss größer als 0 sein')
+        const depth = (feature.depth ?? '').trim() ? evaluate('Tiefe', feature.depth) : undefined
+        const type = feature.holeType ?? 'Simple'
+        const headDiameter = type === 'Simple' ? diameter : evaluate('Kopfdurchmesser', feature.headDiameter)
+        if (type !== 'Simple' && headDiameter <= diameter) throw new Error('Kopfdurchmesser muss größer als der Bohrungsdurchmesser sein')
+        planned.push({
+          kind: 'hole',
+          index,
+          sketch: sketchPlan.index,
+          centers,
+          type,
+          diameter,
+          depth,
+          headDiameter,
+          headDepth: type === 'Counterbore' ? evaluate('Senktiefe', feature.headDepth) : 0,
+          countersinkAngle: type === 'Countersink' ? evaluate('Senkwinkel', feature.countersinkAngle) : 90,
+          reversed: feature.reversed ?? false,
+        })
         return
       }
       if (isShell(feature)) {

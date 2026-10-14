@@ -50,6 +50,29 @@ export async function activate(context: ModuleContext): Promise<void> {
       run: () => void document.addRevolve(),
     }),
     actions.register({
+      id: 'create.plane',
+      label: 'Konstruktionsebene',
+      icon: 'svg:M3 17l6-10h12l-6 10zM12 3v4',
+      group: 'create',
+      order: 99,
+      visible: inModel,
+      run: async () => {
+        const pick = await viewport.pickPlane()
+        if (pick) document.addConstructionPlane(pick)
+      },
+    }),
+    actions.register({
+      id: 'create.hole',
+      label: 'Bohrung (an Skizzenpunkten)',
+      icon: 'svg:M8 4h8v4h-2v12h-4V8H8zM5 20h14',
+      group: 'create',
+      order: 112,
+      shortcut: 'H',
+      visible: inModel,
+      enabled: () => hasBodies() && hasSketch(),
+      run: () => void document.addHole(),
+    }),
+    actions.register({
       id: 'modify.fillet',
       label: 'Abrunden (Kanten)',
       icon: 'svg:M5 20V13a8 8 0 0 1 8-8h7M5 20h15V5',
