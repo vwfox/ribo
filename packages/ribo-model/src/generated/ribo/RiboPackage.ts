@@ -91,6 +91,24 @@ export class RiboPackage extends BasicEPackage {
     REVOLVE__AXIS_LINE: null as unknown as EAttribute | EReference,
     REVOLVE__AXIS: null as unknown as EAttribute | EReference,
     REVOLVE__ANGLE: null as unknown as EAttribute | EReference,
+    EDGE_FEATURE: null as unknown as EClass,
+    EDGE_FEATURE__EDGES: null as unknown as EAttribute | EReference,
+    FILLET: null as unknown as EClass,
+    FILLET__RADIUS: null as unknown as EAttribute | EReference,
+    CHAMFER: null as unknown as EClass,
+    CHAMFER__DISTANCE: null as unknown as EAttribute | EReference,
+    SHELL: null as unknown as EClass,
+    SHELL__THICKNESS: null as unknown as EAttribute | EReference,
+    SHELL__DEPTH: null as unknown as EAttribute | EReference,
+    SHELL__FACES: null as unknown as EAttribute | EReference,
+    EDGE_SELECTION: null as unknown as EClass,
+    EDGE_SELECTION__X: null as unknown as EAttribute | EReference,
+    EDGE_SELECTION__Y: null as unknown as EAttribute | EReference,
+    EDGE_SELECTION__Z: null as unknown as EAttribute | EReference,
+    FACE_SELECTION: null as unknown as EClass,
+    FACE_SELECTION__X: null as unknown as EAttribute | EReference,
+    FACE_SELECTION__Y: null as unknown as EAttribute | EReference,
+    FACE_SELECTION__Z: null as unknown as EAttribute | EReference,
   };
 
   private constructor() {
@@ -607,6 +625,158 @@ export class RiboPackage extends BasicEPackage {
     revolveClass.getEStructuralFeatures().push(revolve_angle);
     RiboPackage.Literals.REVOLVE__ANGLE = revolve_angle;
 
+    // Create EdgeFeature class
+    const edgeFeatureClass = new BasicEClass();
+    edgeFeatureClass.setName('EdgeFeature');
+    edgeFeatureClass.setAbstract(true);
+    edgeFeatureClass.setInterface(false);
+    this.getEClassifiers().push(edgeFeatureClass);
+    edgeFeatureClass.setEPackage(this);
+    RiboPackage.Literals.EDGE_FEATURE = edgeFeatureClass;
+
+    // Create edges feature
+    const edgeFeature_edges = new BasicEReference();
+    edgeFeature_edges.setContainment(true);
+    edgeFeature_edges.setName('edges');
+    edgeFeature_edges.setLowerBound(0);
+    edgeFeature_edges.setUpperBound(-1);
+    edgeFeatureClass.getEStructuralFeatures().push(edgeFeature_edges);
+    RiboPackage.Literals.EDGE_FEATURE__EDGES = edgeFeature_edges;
+
+    // Create Fillet class
+    const filletClass = new BasicEClass();
+    filletClass.setName('Fillet');
+    filletClass.setAbstract(false);
+    filletClass.setInterface(false);
+    this.getEClassifiers().push(filletClass);
+    filletClass.setEPackage(this);
+    RiboPackage.Literals.FILLET = filletClass;
+
+    // Create radius feature
+    const fillet_radius = new BasicEAttribute();
+    fillet_radius.setName('radius');
+    fillet_radius.setLowerBound(1);
+    fillet_radius.setUpperBound(1);
+    filletClass.getEStructuralFeatures().push(fillet_radius);
+    RiboPackage.Literals.FILLET__RADIUS = fillet_radius;
+
+    // Create Chamfer class
+    const chamferClass = new BasicEClass();
+    chamferClass.setName('Chamfer');
+    chamferClass.setAbstract(false);
+    chamferClass.setInterface(false);
+    this.getEClassifiers().push(chamferClass);
+    chamferClass.setEPackage(this);
+    RiboPackage.Literals.CHAMFER = chamferClass;
+
+    // Create distance feature
+    const chamfer_distance = new BasicEAttribute();
+    chamfer_distance.setName('distance');
+    chamfer_distance.setLowerBound(1);
+    chamfer_distance.setUpperBound(1);
+    chamferClass.getEStructuralFeatures().push(chamfer_distance);
+    RiboPackage.Literals.CHAMFER__DISTANCE = chamfer_distance;
+
+    // Create Shell class
+    const shellClass = new BasicEClass();
+    shellClass.setName('Shell');
+    shellClass.setAbstract(false);
+    shellClass.setInterface(false);
+    this.getEClassifiers().push(shellClass);
+    shellClass.setEPackage(this);
+    RiboPackage.Literals.SHELL = shellClass;
+
+    // Create thickness feature
+    const shell_thickness = new BasicEAttribute();
+    shell_thickness.setName('thickness');
+    shell_thickness.setLowerBound(1);
+    shell_thickness.setUpperBound(1);
+    shellClass.getEStructuralFeatures().push(shell_thickness);
+    RiboPackage.Literals.SHELL__THICKNESS = shell_thickness;
+
+    // Create depth feature
+    const shell_depth = new BasicEAttribute();
+    shell_depth.setName('depth');
+    shell_depth.setLowerBound(0);
+    shell_depth.setUpperBound(1);
+    shellClass.getEStructuralFeatures().push(shell_depth);
+    RiboPackage.Literals.SHELL__DEPTH = shell_depth;
+
+    // Create faces feature
+    const shell_faces = new BasicEReference();
+    shell_faces.setContainment(true);
+    shell_faces.setName('faces');
+    shell_faces.setLowerBound(0);
+    shell_faces.setUpperBound(-1);
+    shellClass.getEStructuralFeatures().push(shell_faces);
+    RiboPackage.Literals.SHELL__FACES = shell_faces;
+
+    // Create EdgeSelection class
+    const edgeSelectionClass = new BasicEClass();
+    edgeSelectionClass.setName('EdgeSelection');
+    edgeSelectionClass.setAbstract(false);
+    edgeSelectionClass.setInterface(false);
+    this.getEClassifiers().push(edgeSelectionClass);
+    edgeSelectionClass.setEPackage(this);
+    RiboPackage.Literals.EDGE_SELECTION = edgeSelectionClass;
+
+    // Create x feature
+    const edgeSelection_x = new BasicEAttribute();
+    edgeSelection_x.setName('x');
+    edgeSelection_x.setLowerBound(1);
+    edgeSelection_x.setUpperBound(1);
+    edgeSelectionClass.getEStructuralFeatures().push(edgeSelection_x);
+    RiboPackage.Literals.EDGE_SELECTION__X = edgeSelection_x;
+
+    // Create y feature
+    const edgeSelection_y = new BasicEAttribute();
+    edgeSelection_y.setName('y');
+    edgeSelection_y.setLowerBound(1);
+    edgeSelection_y.setUpperBound(1);
+    edgeSelectionClass.getEStructuralFeatures().push(edgeSelection_y);
+    RiboPackage.Literals.EDGE_SELECTION__Y = edgeSelection_y;
+
+    // Create z feature
+    const edgeSelection_z = new BasicEAttribute();
+    edgeSelection_z.setName('z');
+    edgeSelection_z.setLowerBound(1);
+    edgeSelection_z.setUpperBound(1);
+    edgeSelectionClass.getEStructuralFeatures().push(edgeSelection_z);
+    RiboPackage.Literals.EDGE_SELECTION__Z = edgeSelection_z;
+
+    // Create FaceSelection class
+    const faceSelectionClass = new BasicEClass();
+    faceSelectionClass.setName('FaceSelection');
+    faceSelectionClass.setAbstract(false);
+    faceSelectionClass.setInterface(false);
+    this.getEClassifiers().push(faceSelectionClass);
+    faceSelectionClass.setEPackage(this);
+    RiboPackage.Literals.FACE_SELECTION = faceSelectionClass;
+
+    // Create x feature
+    const faceSelection_x = new BasicEAttribute();
+    faceSelection_x.setName('x');
+    faceSelection_x.setLowerBound(1);
+    faceSelection_x.setUpperBound(1);
+    faceSelectionClass.getEStructuralFeatures().push(faceSelection_x);
+    RiboPackage.Literals.FACE_SELECTION__X = faceSelection_x;
+
+    // Create y feature
+    const faceSelection_y = new BasicEAttribute();
+    faceSelection_y.setName('y');
+    faceSelection_y.setLowerBound(1);
+    faceSelection_y.setUpperBound(1);
+    faceSelectionClass.getEStructuralFeatures().push(faceSelection_y);
+    RiboPackage.Literals.FACE_SELECTION__Y = faceSelection_y;
+
+    // Create z feature
+    const faceSelection_z = new BasicEAttribute();
+    faceSelection_z.setName('z');
+    faceSelection_z.setLowerBound(1);
+    faceSelection_z.setUpperBound(1);
+    faceSelectionClass.getEStructuralFeatures().push(faceSelection_z);
+    RiboPackage.Literals.FACE_SELECTION__Z = faceSelection_z;
+
 
     // ============================================
     // Set ESuperTypes (must be done after all classes are created)
@@ -620,6 +790,10 @@ export class RiboPackage extends BasicEPackage {
     (RiboPackage.Literals.PROFILE_FEATURE as BasicEClass).getESuperTypes().push(RiboPackage.Literals.FEATURE);
     (RiboPackage.Literals.EXTRUDE as BasicEClass).getESuperTypes().push(RiboPackage.Literals.PROFILE_FEATURE);
     (RiboPackage.Literals.REVOLVE as BasicEClass).getESuperTypes().push(RiboPackage.Literals.PROFILE_FEATURE);
+    (RiboPackage.Literals.EDGE_FEATURE as BasicEClass).getESuperTypes().push(RiboPackage.Literals.FEATURE);
+    (RiboPackage.Literals.FILLET as BasicEClass).getESuperTypes().push(RiboPackage.Literals.EDGE_FEATURE);
+    (RiboPackage.Literals.CHAMFER as BasicEClass).getESuperTypes().push(RiboPackage.Literals.EDGE_FEATURE);
+    (RiboPackage.Literals.SHELL as BasicEClass).getESuperTypes().push(RiboPackage.Literals.FEATURE);
 
     // ============================================
     // Set ETypes for all features (must be done after all classes are created).
@@ -662,6 +836,18 @@ export class RiboPackage extends BasicEPackage {
     (RiboPackage.Literals.EXTRUDE__DISTANCE as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
     (RiboPackage.Literals.REVOLVE__AXIS_LINE as BasicEReference).setEType(RiboPackage.Literals.SKETCH_LINE);
     (RiboPackage.Literals.REVOLVE__ANGLE as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.EDGE_FEATURE__EDGES as BasicEReference).setEType(RiboPackage.Literals.EDGE_SELECTION);
+    (RiboPackage.Literals.FILLET__RADIUS as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.CHAMFER__DISTANCE as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.SHELL__THICKNESS as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.SHELL__DEPTH as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.SHELL__FACES as BasicEReference).setEType(RiboPackage.Literals.FACE_SELECTION);
+    (RiboPackage.Literals.EDGE_SELECTION__X as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
+    (RiboPackage.Literals.EDGE_SELECTION__Y as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
+    (RiboPackage.Literals.EDGE_SELECTION__Z as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
+    (RiboPackage.Literals.FACE_SELECTION__X as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
+    (RiboPackage.Literals.FACE_SELECTION__Y as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
+    (RiboPackage.Literals.FACE_SELECTION__Z as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
 
     // ============================================
     // Register XML name mappings from ExtendedMetaData annotations

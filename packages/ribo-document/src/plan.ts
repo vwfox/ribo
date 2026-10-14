@@ -6,8 +6,11 @@
 
 import {
   isArc,
+  isChamfer,
   isCircle,
   isExtrude,
+  isFillet,
+  isShell,
   isLine,
   isProfileFeature,
   isRevolve,
@@ -17,7 +20,7 @@ import {
   type ProfileFeature,
   type Sketch,
 } from 'ribo-model'
-import type { BuildPlan, FeatureProblem, PlanCurve, PlanFeature, PlanOperation, PlanRegion, Vec2 } from 'ribo-contracts'
+import type { BuildPlan, FeatureProblem, PlanCurve, PlanFeature, PlanOperation, PlanRegion, Vec2, Vec3 } from 'ribo-contracts'
 import { evaluateExpression, type Scope } from './expression'
 import { findRegions, regionAt } from 'ribo-geometry'
 
@@ -98,7 +101,7 @@ export function compilePlan(design: Design): CompiledPlan {
   const features = design.features.toArray()
   const rollback = design.rollback ?? -1
   const end = rollback >= 0 ? Math.min(rollback, features.length) : features.length
-  const planned: PlanFeature[] = []
+  const planned: BuildPlan['features'] = []
   const problems: FeatureProblem[] = []
   /** Sketches that made it into the plan */
   const sketchPlans = new Map<Sketch, Extract<PlanFeature, { kind: 'sketch' }>>()
@@ -125,6 +128,21 @@ export function compilePlan(design: Design): CompiledPlan {
         }
         planned.push(sketchPlan)
         sketchPlans.set(feature, sketchPlan)
+        return
+      }
+      if (isFillet(feature) || isChamfer(feature)) {
+        const edges = feature.edges.toArray().map((e): Vec3 => [e.x, e.y, e.z])
+        if (edges.length === 0) throw new Error('Keine Kante gewählt – Kanten im Ansichtsfenster anklicken')
+        if (isFillet(feature)) planned.push({ kind: 'fillet', index, edges, radius: evaluate('Radius', feature.radius) })
+        else planned.push({ kind: 'chamfer', index, edges, distance: evaluate('Abstand', feature.distance) })
+        return
+      }
+      if (isShell(feature)) {
+        const faces = feature.faces.toArray().map((f): Vec3 => [f.x, f.y, f.z])
+        if (faces.length === 0) throw new Error('Keine Fläche gewählt – zu öffnende Flächen im Ansichtsfenster anklicken')
+        const depth = (feature.depth ?? '').trim() ? evaluate('Tiefe', feature.depth) : undefined
+        if (depth !== undefined && depth <= 0) throw new Error('Tiefe muss größer als 0 sein')
+        planned.push({ kind: 'shell', index, faces, thickness: evaluate('Wandstärke', feature.thickness), depth })
         return
       }
       if (!isProfileFeature(feature)) return

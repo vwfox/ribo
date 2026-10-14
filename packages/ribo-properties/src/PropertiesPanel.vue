@@ -10,8 +10,11 @@ import {
   FeatureOperation,
   SketchAxis,
   SketchPlane,
+  isEdgeFeature,
   isExtrude,
+  isFillet,
   isLine,
+  isShell,
   isParameter,
   isProfileFeature,
   isRevolve,
@@ -87,14 +90,23 @@ const profileInfo = computed(() => {
   const feature = selected.value
   if (!isProfileFeature(feature) || !feature.sketch) return undefined
   const index = design.value.features.indexOf(feature)
-  const planned = props.document.plan.value.features.find((f) => f.kind !== 'sketch' && f.index === index)
+  const planned = props.document.plan.value.features.find((f) => (f.kind === 'extrude' || f.kind === 'revolve') && f.index === index)
   const regions = props.document.sketchPlan(feature.sketch)?.regions.length ?? 0
   return {
     automatic: feature.profiles.size() === 0,
-    used: planned && planned.kind !== 'sketch' ? planned.profiles.length : 0,
+    used: planned && (planned.kind === 'extrude' || planned.kind === 'revolve') ? planned.profiles.length : 0,
     regions,
   }
 })
+
+/** Removes all picked edges or faces of the selected fillet, chamfer or shell */
+function clearPicks() {
+  const feature = selected.value
+  props.document.history.record('Auswahl leeren', () => {
+    if (isEdgeFeature(feature)) feature.edges.clear()
+    else if (isShell(feature)) feature.faces.clear()
+  })
+}
 
 function resetProfiles() {
   const feature = selected.value
@@ -280,7 +292,58 @@ function setAxis(value: string) {
       </template>
     </template>
 
+    <!-- Fillet / Chamfer -->
+    <template v-else-if="isEdgeFeature(selected)">
+      <label class="ribo-field">
+        <span class="ribo-field-label">Name</span>
+        <InputText :model-value="selected.name" size="small" fluid @update:model-value="selected.name = $event ?? ''" />
+      </label>
+      <ExpressionField v-if="isFillet(selected)" v-model="selected.radius" label="Radius" unit="mm" :document="document" />
+      <ExpressionField v-else v-model="(selected as any).distance" label="Abstand" unit="mm" :document="document" />
+      <div class="ribo-field">
+        <span class="ribo-field-label">Kanten</span>
+        <div class="ribo-profile-info">
+          <span>{{ selected.edges.size() }} gewählt</span>
+          <Button v-if="selected.edges.size()" label="Leeren" size="small" text @click="clearPicks" />
+        </div>
+        <small class="ribo-field-hint">Kanten im Ansichtsfenster anklicken, ein erneuter Klick entfernt sie. Die feinen Linien sind die Kanten vor dem Feature.</small>
+      </div>
+    </template>
+
+    <!-- Shell -->
+    <template v-else-if="isShell(selected)">
+      <label class="ribo-field">
+        <span class="ribo-field-label">Name</span>
+        <InputText :model-value="selected.name" size="small" fluid @update:model-value="selected.name = $event ?? ''" />
+      </label>
+      <ExpressionField v-model="selected.thickness" label="Wandstärke (nach innen)" unit="mm" :document="document" />
+      <ExpressionField
+        v-model="selected.depth"
+        label="Tiefe ab der offenen Fläche"
+        unit="mm"
+        empty-hint="leer = ganz aushöhlen, Boden so dick wie die Wand"
+        :document="document"
+      />
+      <div class="ribo-field">
+        <span class="ribo-field-label">Offene Flächen</span>
+        <div class="ribo-profile-info">
+          <span>{{ selected.faces.size() }} gewählt</span>
+          <Button v-if="selected.faces.size()" label="Leeren" size="small" text @click="clearPicks" />
+        </div>
+        <small class="ribo-field-hint">Die Flächen anklicken, die offen bleiben sollen, z.&nbsp;B. die Oberseite einer Box.</small>
+      </div>
+    </template>
+
     <div v-if="selected" class="ribo-actions">
+      <Button
+        v-if="isProfileFeature(selected) || isEdgeFeature(selected) || isShell(selected)"
+        v-tooltip.bottom="'Änderungen sind übernommen – schließt den Schritt (Enter)'"
+        label="OK"
+        icon="pi pi-check"
+        severity="success"
+        size="small"
+        @click="document.select(undefined)"
+      />
       <Button label="Löschen" icon="pi pi-trash" size="small" severity="danger" text @click="document.remove(selected)" />
     </div>
   </div>
@@ -314,6 +377,8 @@ function setAxis(value: string) {
 }
 
 .ribo-actions {
+  display: flex;
+  justify-content: space-between;
   border-top: 1px solid var(--p-content-border-color);
   padding-top: 0.5rem;
 }

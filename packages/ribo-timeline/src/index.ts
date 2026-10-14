@@ -6,7 +6,7 @@
 import { defineComponent, h, markRaw } from 'tsm:vue'
 import type { ModuleContext } from '@eclipse-daanse/tsm'
 import { ACTIONS, DOCUMENT, PANELS, SKETCHER, VIEWPORT } from 'ribo-contracts'
-import { isFeature, isParameter, isProfileFeature, isSketch, type Sketch } from 'ribo-model'
+import { isFeature, isParameter, isSketch, type Sketch } from 'ribo-model'
 import TimelinePanel from './TimelinePanel.vue'
 
 const cleanups: (() => void)[] = []
@@ -21,6 +21,7 @@ export async function activate(context: ModuleContext): Promise<void> {
   cleanups.push(context.services.getRequired(PANELS).register({ id: 'browser', title: 'Browser', icon: 'pi pi-list', location: 'left', component: panel }))
 
   const inModel = () => viewport.mode.value === 'model'
+  const hasBodies = () => (document.result.value?.bodies.length ?? 0) > 0
   const hasSketch = () => {
     void document.revision.value
     return document.design.value.features.toArray().some(isSketch)
@@ -47,6 +48,37 @@ export async function activate(context: ModuleContext): Promise<void> {
       visible: inModel,
       enabled: hasSketch,
       run: () => void document.addRevolve(),
+    }),
+    actions.register({
+      id: 'modify.fillet',
+      label: 'Abrunden (Kanten)',
+      icon: 'svg:M5 20V13a8 8 0 0 1 8-8h7M5 20h15V5',
+      group: 'modify',
+      order: 100,
+      shortcut: 'F',
+      visible: inModel,
+      enabled: hasBodies,
+      run: () => void document.addFillet(),
+    }),
+    actions.register({
+      id: 'modify.chamfer',
+      label: 'Fase (Kanten)',
+      icon: 'svg:M5 20V11l6-6h9M5 20h15V5',
+      group: 'modify',
+      order: 101,
+      visible: inModel,
+      enabled: hasBodies,
+      run: () => void document.addChamfer(),
+    }),
+    actions.register({
+      id: 'modify.shell',
+      label: 'Schale (aushöhlen)',
+      icon: 'svg:M4 6v14h16V6M7 6v11h10V6',
+      group: 'modify',
+      order: 102,
+      visible: inModel,
+      enabled: hasBodies,
+      run: () => void document.addShell(),
     }),
     actions.register({
       id: 'edit.undo',
@@ -97,10 +129,10 @@ export async function activate(context: ModuleContext): Promise<void> {
       group: 'modify',
       order: 201,
       visible: inModel,
-      enabled: () => isSketch(document.selection.value) || isProfileFeature(document.selection.value),
+      enabled: () => isFeature(document.selection.value),
       run: () => {
         const selected = document.selection.value
-        if (isSketch(selected) || isProfileFeature(selected)) {
+        if (isFeature(selected)) {
           document.history.record('Unterdrücken', () => {
             selected.suppressed = !selected.suppressed
           })

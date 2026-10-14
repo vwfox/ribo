@@ -32,6 +32,16 @@ import type { Extrude } from './Extrude.js';
 import { ExtrudeImpl } from './ExtrudeImpl.js';
 import type { Revolve } from './Revolve.js';
 import { RevolveImpl } from './RevolveImpl.js';
+import type { Fillet } from './Fillet.js';
+import { FilletImpl } from './FilletImpl.js';
+import type { Chamfer } from './Chamfer.js';
+import { ChamferImpl } from './ChamferImpl.js';
+import type { Shell } from './Shell.js';
+import { ShellImpl } from './ShellImpl.js';
+import type { EdgeSelection } from './EdgeSelection.js';
+import { EdgeSelectionImpl } from './EdgeSelectionImpl.js';
+import type { FaceSelection } from './FaceSelection.js';
+import { FaceSelectionImpl } from './FaceSelectionImpl.js';
 
 /**
  * Factory for creating Ribo model objects
@@ -138,6 +148,41 @@ export class RiboFactory extends BasicEFactory {
   }
 
   /**
+   * Create a new Fillet instance
+   */
+  createFillet(): Fillet {
+    return new FilletImpl();
+  }
+
+  /**
+   * Create a new Chamfer instance
+   */
+  createChamfer(): Chamfer {
+    return new ChamferImpl();
+  }
+
+  /**
+   * Create a new Shell instance
+   */
+  createShell(): Shell {
+    return new ShellImpl();
+  }
+
+  /**
+   * Create a new EdgeSelection instance
+   */
+  createEdgeSelection(): EdgeSelection {
+    return new EdgeSelectionImpl();
+  }
+
+  /**
+   * Create a new FaceSelection instance
+   */
+  createFaceSelection(): FaceSelection {
+    return new FaceSelectionImpl();
+  }
+
+  /**
    * Create an instance of the given class
    */
   override create(eClass: EClass): EObject {
@@ -166,6 +211,16 @@ export class RiboFactory extends BasicEFactory {
         return this.createExtrude();
       case 'Revolve':
         return this.createRevolve();
+      case 'Fillet':
+        return this.createFillet();
+      case 'Chamfer':
+        return this.createChamfer();
+      case 'Shell':
+        return this.createShell();
+      case 'EdgeSelection':
+        return this.createEdgeSelection();
+      case 'FaceSelection':
+        return this.createFaceSelection();
       default:
         throw new Error(`Unknown class: ${eClass.getName()}`);
     }

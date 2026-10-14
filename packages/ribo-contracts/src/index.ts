@@ -11,7 +11,9 @@ import type { App, Component, ComputedRef, Ref, ShallowRef } from 'vue'
 import type { EObject } from '@emfts/core'
 import type {
   Design,
+  EdgeFeature,
   Feature,
+  Shell,
   Parameter,
   ProfileFeature,
   Sketch,
@@ -22,7 +24,7 @@ import type {
 } from 'ribo-model'
 
 export * from './geometry'
-import type { BuildPlan, BuildResult, ExportFormat, FeatureProblem, PlanFeature, PlanPlane, Vec2 } from './geometry'
+import type { BuildPlan, BuildResult, ExportFormat, FeatureProblem, PlanFeature, PlanPlane, Vec2, Vec3 } from './geometry'
 
 // ---------------------------------------------------------------------------
 // Kernel
@@ -119,6 +121,19 @@ export interface DocumentService {
   toggleProfile(feature: ProfileFeature, point: Vec2): void
   /** Moves the timeline marker: only features before index are built; -1 builds all */
   setRollback(index: number): void
+
+  addFillet(): EdgeFeature
+  addChamfer(): EdgeFeature
+  addShell(): Shell
+  /** Adds the edge with this midpoint, or with `existing` removes that earlier pick */
+  toggleEdge(feature: EdgeFeature, midpoint: Vec3, existing?: number): void
+  /** Adds the face at this point, or with `existing` removes that earlier pick */
+  toggleFace(feature: Shell, point: Vec3, existing?: number): void
+  /**
+   * The bodies as they are before the selected edge or face feature - what
+   * its edges and faces are picked on. Undefined when no such feature is selected.
+   */
+  readonly inputResult: ShallowRef<BuildResult | undefined>
 }
 
 export const DOCUMENT = serviceId<DocumentService>('ribo.document')

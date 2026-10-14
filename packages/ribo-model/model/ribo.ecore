@@ -185,4 +185,51 @@
     <eLiterals name="Y" value="1"/>
   </eClassifiers>
 
+  <!-- Body modifications -->
+  <eClassifiers xsi:type="ecore:EClass" name="EdgeFeature" abstract="true" eSuperTypes="#//Feature">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="Modifies picked edges of the bodies built so far."/>
+    </eAnnotations>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="edges" upperBound="-1" eType="#//EdgeSelection" containment="true"/>
+  </eClassifiers>
+
+  <eClassifiers xsi:type="ecore:EClass" name="Fillet" eSuperTypes="#//EdgeFeature">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="radius" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="2"/>
+  </eClassifiers>
+
+  <eClassifiers xsi:type="ecore:EClass" name="Chamfer" eSuperTypes="#//EdgeFeature">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="distance" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="1"/>
+  </eClassifiers>
+
+  <eClassifiers xsi:type="ecore:EClass" name="Shell" eSuperTypes="#//Feature">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="Hollows the body the picked faces belong to; the picked faces are removed (open)."/>
+    </eAnnotations>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="thickness" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="2"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="depth" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="How deep the hollow reaches from the first open face. Empty: down to the wall thickness above the opposite side."/>
+      </eAnnotations>
+    </eStructuralFeatures>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="faces" upperBound="-1" eType="#//FaceSelection" containment="true"/>
+  </eClassifiers>
+
+  <eClassifiers xsi:type="ecore:EClass" name="EdgeSelection">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="A picked edge, remembered by its midpoint in world coordinates. The nearest edge within a tolerance is used."/>
+    </eAnnotations>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="x" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="y" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="z" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0"/>
+  </eClassifiers>
+
+  <eClassifiers xsi:type="ecore:EClass" name="FaceSelection">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="A picked face, remembered by a point on it in world coordinates."/>
+    </eAnnotations>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="x" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="y" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="z" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0"/>
+  </eClassifiers>
+
 </ecore:EPackage>

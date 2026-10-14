@@ -6,7 +6,11 @@
 import type { EClass, EObject } from '@emfts/core'
 import { RiboPackage } from './generated/ribo/RiboPackage.js'
 import type {
+  Chamfer,
   Dimension,
+  EdgeFeature,
+  Fillet,
+  Shell,
   Extrude,
   Feature,
   GeometricConstraint,
@@ -38,6 +42,12 @@ export const isProfileFeature = (o: Maybe): o is ProfileFeature => isKindOf(o, L
 export const isExtrude = (o: Maybe): o is Extrude => isKindOf(o, L().EXTRUDE)
 export const isRevolve = (o: Maybe): o is Revolve => isKindOf(o, L().REVOLVE)
 export const isParameter = (o: Maybe): o is Parameter => isKindOf(o, L().PARAMETER)
+export const isEdgeFeature = (o: Maybe): o is EdgeFeature => isKindOf(o, L().EDGE_FEATURE)
+export const isFillet = (o: Maybe): o is Fillet => isKindOf(o, L().FILLET)
+export const isChamfer = (o: Maybe): o is Chamfer => isKindOf(o, L().CHAMFER)
+export const isShell = (o: Maybe): o is Shell => isKindOf(o, L().SHELL)
+/** Features that modify existing bodies by picked edges or faces */
+export const isBodyModifier = (o: Maybe): o is EdgeFeature | Shell => isEdgeFeature(o) || isShell(o)
 
 export const isSketchPoint = (o: Maybe): o is SketchPoint => isKindOf(o, L().SKETCH_POINT)
 export const isSketchCurve = (o: Maybe): o is SketchCurve => isKindOf(o, L().SKETCH_CURVE)

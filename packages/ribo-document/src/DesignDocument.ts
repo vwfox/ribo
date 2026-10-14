@@ -11,6 +11,7 @@ import {
 import {
   RiboFactory,
   FeatureOperation,
+  isBodyModifier,
   isFeature,
   isParameter,
   isProfileFeature,
@@ -22,12 +23,14 @@ import {
   pointsOf,
   sketchOf,
   type Design,
+  type EdgeFeature,
   type Feature,
   type Parameter,
   type ProfileFeature,
   type Sketch,
   type SketchConstraint,
   type SketchCurve,
+  type Shell,
   type SketchPlane,
   type SketchPoint,
 } from 'ribo-model'
@@ -40,6 +43,7 @@ import type {
   SketchPlanFeature,
   SolveOutcome,
   Vec2,
+  Vec3,
 } from 'ribo-contracts'
 import { evaluateExpression } from './expression'
 import { History } from './History'
@@ -85,6 +89,7 @@ export class DesignDocument implements DocumentService {
   readonly building = ref(false)
   readonly history = new History()
   readonly solverReady = ref(false)
+  readonly inputResult = shallowRef<BuildResult | undefined>()
 
   private readonly factory = RiboFactory.eINSTANCE
   private readonly adapter: EContentAdapter
@@ -97,6 +102,8 @@ export class DesignDocument implements DocumentService {
   private buildTimer: ReturnType<typeof setTimeout> | undefined
   private buildRunning = false
   private buildAgain = false
+  /** Which plan and timeline index inputResult was built for */
+  private inputKey: { plan: BuildPlan; index: number } | undefined
 
   constructor(
     private readonly kernel: KernelService,
@@ -127,6 +134,7 @@ export class DesignDocument implements DocumentService {
 
   select(object: EObject | undefined): void {
     this.selection.value = object
+    this.updateInput()
   }
 
   newDesign(): void {
@@ -289,6 +297,80 @@ export class DesignDocument implements DocumentService {
     this.history.record('Zeitleiste verschieben', () => {
       design.rollback = value
     })
+  }
+
+  // --------------------------------------------------------- modifications
+
+  addFillet(): EdgeFeature {
+    const fillet = this.factory.createFillet()
+    fillet.name = this.nextFeatureName('Abrundung')
+    this.history.record('Abrunden', () => this.insertFeature(fillet))
+    this.select(fillet)
+    return fillet
+  }
+
+  addChamfer(): EdgeFeature {
+    const chamfer = this.factory.createChamfer()
+    chamfer.name = this.nextFeatureName('Fase')
+    this.history.record('Fasen', () => this.insertFeature(chamfer))
+    this.select(chamfer)
+    return chamfer
+  }
+
+  addShell(): Shell {
+    const shell = this.factory.createShell()
+    shell.name = this.nextFeatureName('Schale')
+    this.history.record('Schale', () => this.insertFeature(shell))
+    this.select(shell)
+    return shell
+  }
+
+  toggleEdge(feature: EdgeFeature, [x, y, z]: Vec3, existing?: number): void {
+    this.history.record('Kante wählen', () => {
+      if (existing !== undefined && existing >= 0 && existing < feature.edges.size()) {
+        feature.edges.removeAt(existing)
+        return
+      }
+      const edge = this.factory.createEdgeSelection()
+      Object.assign(edge, { x, y, z })
+      feature.edges.add(edge)
+    })
+  }
+
+  toggleFace(feature: Shell, [x, y, z]: Vec3, existing?: number): void {
+    this.history.record('Fläche wählen', () => {
+      if (existing !== undefined && existing >= 0 && existing < feature.faces.size()) {
+        feature.faces.removeAt(existing)
+        return
+      }
+      const face = this.factory.createFaceSelection()
+      Object.assign(face, { x, y, z })
+      feature.faces.add(face)
+    })
+  }
+
+  /** Builds the bodies before the selected edge or face feature, for picking on them */
+  private updateInput(): void {
+    const selected = this.selection.value
+    if (!isBodyModifier(selected)) {
+      this.inputKey = undefined
+      this.inputResult.value = undefined
+      return
+    }
+    const index = this.design.value.features.indexOf(selected)
+    const plan = this.plan.value
+    if (this.inputKey?.plan === plan && this.inputKey.index === index) return
+    const key = { plan, index }
+    this.inputKey = key
+    const before: BuildPlan = { features: plan.features.filter((f) => f.index < index) }
+    this.kernel.build(before).then(
+      (result) => {
+        if (this.inputKey === key) this.inputResult.value = result
+      },
+      () => {
+        if (this.inputKey === key) this.inputResult.value = undefined
+      },
+    )
   }
 
   // ------------------------------------------------------------- internals
@@ -463,6 +545,7 @@ export class DesignDocument implements DocumentService {
     // The solver's writes were muted; views keyed on the revision must still see them
     this.revision.value++
     triggerRef(this.design)
+    this.updateInput()
 
     clearTimeout(this.buildTimer)
     this.buildTimer = setTimeout(() => void this.build(), BUILD_DELAY_MS)

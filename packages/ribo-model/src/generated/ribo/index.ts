@@ -26,6 +26,12 @@ export type { ProfileFeature } from './ProfileFeature.js';
 export type { ProfileSelection } from './ProfileSelection.js';
 export type { Extrude } from './Extrude.js';
 export type { Revolve } from './Revolve.js';
+export type { EdgeFeature } from './EdgeFeature.js';
+export type { Fillet } from './Fillet.js';
+export type { Chamfer } from './Chamfer.js';
+export type { Shell } from './Shell.js';
+export type { EdgeSelection } from './EdgeSelection.js';
+export type { FaceSelection } from './FaceSelection.js';
 
 // Implementations (including abstract classes, as they're extended by subclasses)
 export { DesignImpl } from './DesignImpl.js';
@@ -44,6 +50,12 @@ export { ProfileFeatureImpl } from './ProfileFeatureImpl.js';
 export { ProfileSelectionImpl } from './ProfileSelectionImpl.js';
 export { ExtrudeImpl } from './ExtrudeImpl.js';
 export { RevolveImpl } from './RevolveImpl.js';
+export { EdgeFeatureImpl } from './EdgeFeatureImpl.js';
+export { FilletImpl } from './FilletImpl.js';
+export { ChamferImpl } from './ChamferImpl.js';
+export { ShellImpl } from './ShellImpl.js';
+export { EdgeSelectionImpl } from './EdgeSelectionImpl.js';
+export { FaceSelectionImpl } from './FaceSelectionImpl.js';
 
 // Enums
 export { SketchPlane, getSketchPlane, getSketchPlaneByLiteral } from './SketchPlane.js';

@@ -14,7 +14,7 @@ npm run type-check
 npm run lint
 ```
 
-## Bedienung (Stand Schritt 2)
+## Bedienung (Stand Schritt 3)
 
 Der Ablauf orientiert sich an Fusion 360:
 
@@ -36,12 +36,16 @@ Der Ablauf orientiert sich an Fusion 360:
    - Ohne Auswahl werden die äußeren Profile genommen, Löcher bleiben also Löcher.
    - Im Ansichtsfenster Profile anklicken, um sie hinzuzufügen oder zu entfernen.
    - Drehen geht um eine Skizzenachse oder eine gewählte Linie.
-8. **Zeitleiste**:
+8. **Abrunden** (F), **Fase**, **Schale**:
+   - Das Feature anlegen und im Ansichtsfenster Kanten bzw. die offen bleibenden Flächen anklicken.
+   - Das Ergebnis ist sofort sichtbar. Die Kanten vor dem Feature bleiben als feine Linien anklickbar.
+   - Radius, Abstand, Wandstärke und die Tiefe der Schale sind Ausdrücke. Ohne Tiefe wird ganz ausgehöhlt.
+9. **Zeitleiste**:
    - Unterdrücken, bis zu einem Feature zurückrollen (neue Features landen am Marker)
    - Doppelklick auf eine Skizze bearbeitet sie.
-9. **Parameter** treiben Bemaßungen und Abstände, z. B. `wand * 2 + 0.4`.
-10. **Rückgängig/Wiederholen** mit Strg+Z / Strg+Y.
-11. **Als STL exportieren** (Strg+E) für den Slicer, **STEP** für andere CAD-Programme.
+10. **Parameter** treiben Bemaßungen und Abstände, z. B. `wand * 2 + 0.4`.
+11. **Rückgängig/Wiederholen** mit Strg+Z / Strg+Y.
+12. **Als STL exportieren** (Strg+E) für den Slicer, **STEP** für andere CAD-Programme.
 
 Navigation in 3D: links drehen, rechts oder Mitte verschieben, das Rad zoomt zum Mauszeiger. In der Skizze verschieben die rechte und die mittlere Taste.
 
@@ -90,11 +94,13 @@ npm run generate
 - Skizzen liegen auf Ursprungsebenen mit Versatz. Ebene Flächen, die zu einer Ursprungsebene parallel sind, lassen sich anklicken; schräge Ebenen noch nicht.
 - Der Solver ändert beim Hinzufügen einer Abhängigkeit manchmal mehr Geometrie als nötig (DogLeg von PlaneGCS).
 - Offset, Spiegeln und Muster in der Skizze fehlen noch.
+- Gewählte Kanten und Flächen werden über ihre Lage gemerkt (Toleranz 0,5 mm). Verschiebt eine Maßänderung sie weiter, meldet das Feature „nicht mehr gefunden“, und man wählt sie neu.
+- Eine Schale, deren offene Fläche an eine Rundung grenzt, schafft OpenCascade nicht. Dann die Schale vor dem Abrunden anlegen (Zeitleiste zurückrollen).
 - Die Enum-Attribute haben im generierten Package keinen `eType` (#83). Die Werte werden als Literal-Strings gespeichert.
 
 ## Nächste Schritte
 
 1. ~~Gerüst und Modell, Extrude/Revolve, Viewport, STL~~
 2. ~~Sketcher mit Constraints (PlaneGCS), Timeline mit Rollback, Undo/Redo~~
-3. Fillet, Chamfer und Shell mit Kantenauswahl im Viewport
+3. ~~Abrunden, Fase und Schale mit Kanten- und Flächenauswahl im Ansichtsfenster~~
 4. 3MF-Export und Druck-Checks (Wanddicke, Überhänge, Bett-Passung)

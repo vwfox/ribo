@@ -1,5 +1,8 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js'
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js'
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js'
 import {
   PLANE_BASIS,
   type BodyMesh,
@@ -11,6 +14,7 @@ import {
   type SketchPlanFeature,
   type SketchView,
   type Vec2,
+  type Vec3,
 } from 'ribo-contracts'
 
 export type ViewDirection = 'iso' | 'top' | 'front' | 'right'
@@ -40,6 +44,74 @@ const BED_SIZE = 220
 /** Pointer travel below which a press counts as a click, not a drag */
 const CLICK_TOLERANCE_PX = 4
 const CAMERA_ANIMATION_MS = 280
+/** Screen distance within which an edge counts as under the pointer */
+const EDGE_PICK_PX = 8
+/** How far a remembered pick may lie from the edge or face it stands for, mm */
+const PICK_MATCH_MM = 0.5
+
+/** One B-rep edge of a body mesh as a polyline */
+interface EdgeLine {
+  points: THREE.Vector3[]
+  midpoint: THREE.Vector3
+}
+
+/** One B-rep face of a body mesh as triangles */
+interface FaceTriangles {
+  triangles: THREE.Triangle[]
+}
+
+function edgeLines(data: BodyMesh): EdgeLine[] {
+  return data.edgeGroups.map(({ start, count }) => {
+    const points: THREE.Vector3[] = []
+    for (let i = start; i + 2 < start + count; i += 3) points.push(new THREE.Vector3(data.edges[i], data.edges[i + 1], data.edges[i + 2]))
+    // Segments come as pairs; drop the repeated joints
+    const unique = points.filter((p, i) => i === 0 || !p.equals(points[i - 1]!))
+    return { points: unique, midpoint: polylineMidpoint(unique) }
+  })
+}
+
+function polylineMidpoint(points: THREE.Vector3[]): THREE.Vector3 {
+  let total = 0
+  for (let i = 1; i < points.length; i++) total += points[i]!.distanceTo(points[i - 1]!)
+  let walked = 0
+  for (let i = 1; i < points.length; i++) {
+    const length = points[i]!.distanceTo(points[i - 1]!)
+    if (walked + length >= total / 2) return points[i - 1]!.clone().lerp(points[i]!, (total / 2 - walked) / (length || 1))
+    walked += length
+  }
+  return points[0]?.clone() ?? new THREE.Vector3()
+}
+
+function faceTriangles(data: BodyMesh): FaceTriangles[] {
+  const v = (i: number) => new THREE.Vector3(data.vertices[i * 3], data.vertices[i * 3 + 1], data.vertices[i * 3 + 2])
+  return data.faces.map(({ start, count }) => {
+    const triangles: THREE.Triangle[] = []
+    for (let i = start; i < start + count; i += 3) triangles.push(new THREE.Triangle(v(data.triangles[i]!), v(data.triangles[i + 1]!), v(data.triangles[i + 2]!)))
+    return { triangles }
+  })
+}
+
+function distanceToPolyline(p: THREE.Vector3, points: THREE.Vector3[]): number {
+  let best = Infinity
+  const segment = new THREE.Line3()
+  const closest = new THREE.Vector3()
+  for (let i = 1; i < points.length; i++) {
+    segment.set(points[i - 1]!, points[i]!)
+    segment.closestPointToPoint(p, true, closest)
+    best = Math.min(best, closest.distanceTo(p))
+  }
+  return best
+}
+
+function distanceToFace(p: THREE.Vector3, face: FaceTriangles): number {
+  let best = Infinity
+  const closest = new THREE.Vector3()
+  for (const triangle of face.triangles) {
+    triangle.closestPointToPoint(p, closest)
+    best = Math.min(best, closest.distanceTo(p))
+  }
+  return best
+}
 
 const v3 = (p: readonly number[]) => new THREE.Vector3(p[0], p[1], p[2])
 
@@ -103,6 +175,16 @@ export interface SceneCallbacks {
   onSketchView(view: SketchView | undefined): void
   /** A profile region was clicked while profile picking */
   onRegionClick(point: Vec2): void
+  /** An edge was clicked while edge picking; `existing` is the index of the pick it matches */
+  onEdgeClick(midpoint: Vec3, existing: number | undefined): void
+  /** A face was clicked while face picking */
+  onFaceClick(point: Vec3, existing: number | undefined): void
+}
+
+/** Edges or faces offered for picking, with the picks made so far */
+export interface ModifierPicking {
+  mode: 'edges' | 'faces'
+  picks: Vec3[]
 }
 
 /**
@@ -128,7 +210,14 @@ export class SceneView {
   private readonly raycaster = new THREE.Raycaster()
   private frame = 0
   private bounds = new THREE.Box3()
-  private bodyMeshes: { mesh: THREE.Mesh; data: BodyMesh }[] = []
+  private bodyMeshes: { mesh: THREE.Mesh; data: BodyMesh; edges: EdgeLine[]; faces: FaceTriangles[] }[] = []
+  /** Bodies the edges and faces are picked on, when they differ from the shown ones */
+  private pickSource: { mesh: THREE.Mesh; data: BodyMesh; edges: EdgeLine[]; faces: FaceTriangles[] }[] | undefined
+  /** Edges of the pick bodies, drawn faintly over the shown result */
+  private readonly ghost = new THREE.Group()
+  private readonly picked = new THREE.Group()
+  private modifier: ModifierPicking | undefined
+  private readonly lineMaterials: LineMaterial[] = []
   private width = 1
   private height = 1
 
@@ -173,7 +262,7 @@ export class SceneView {
     this.ortho.add(sun.clone())
     this.scene.add(this.camera, this.ortho)
 
-    this.scene.add(this.grid, this.bodies, this.regions, this.sketches, this.pickers, this.hover, this.axes)
+    this.scene.add(this.grid, this.bodies, this.regions, this.sketches, this.pickers, this.ghost, this.picked, this.hover, this.axes)
     this.buildGrid()
 
     const canvas = this.renderer.domElement
@@ -200,7 +289,7 @@ export class SceneView {
     this.input.removeEventListener('pointerup', this.onPointerUp)
     this.input.removeEventListener('wheel', this.onWheel)
     this.input.removeEventListener('contextmenu', this.onContextMenu)
-    for (const group of [this.bodies, this.sketches, this.regions, this.pickers, this.hover, this.grid]) clearGroup(group)
+    for (const group of [this.bodies, this.sketches, this.regions, this.pickers, this.ghost, this.picked, this.hover, this.grid]) clearGroup(group)
     this.renderer.dispose()
     this.renderer.domElement.remove()
   }
@@ -227,13 +316,15 @@ export class SceneView {
         color: this.colors.body,
         roughness: 0.55,
         metalness: 0.05,
+        // Both sides: a face OpenCascade hands over reversed must not vanish
+        side: THREE.DoubleSide,
         polygonOffset: true,
         polygonOffsetFactor: 1,
         polygonOffsetUnits: 1,
       })
       const mesh = new THREE.Mesh(geometry, material)
       this.bodies.add(mesh)
-      this.bodyMeshes.push({ mesh, data })
+      this.bodyMeshes.push({ mesh, data, edges: edgeLines(data), faces: faceTriangles(data) })
 
       const edgeGeometry = new THREE.BufferGeometry()
       edgeGeometry.setAttribute('position', new THREE.BufferAttribute(data.edges, 3))
@@ -242,7 +333,221 @@ export class SceneView {
       const [minX, minY, minZ, maxX, maxY, maxZ] = data.bounds
       this.bounds.union(new THREE.Box3(new THREE.Vector3(minX, minY, minZ), new THREE.Vector3(maxX, maxY, maxZ)))
     }
+    this.showPicked()
     this.requestRender()
+  }
+
+  // ------------------------------------------------------- edge/face pick
+
+  private get pickBodies() {
+    return this.pickSource ?? this.bodyMeshes
+  }
+
+  /**
+   * Bodies to pick edges and faces on while others are shown - the state
+   * before a fillet while its result is previewed. Undefined picks on the
+   * shown bodies.
+   */
+  setPickBodies(meshes: BodyMesh[] | undefined): void {
+    clearGroup(this.ghost)
+    for (const { mesh } of this.pickSource ?? []) {
+      mesh.geometry.dispose()
+      ;(mesh.material as THREE.Material).dispose()
+    }
+    if (!meshes) {
+      this.pickSource = undefined
+    } else {
+      this.pickSource = meshes.map((data) => {
+        const geometry = new THREE.BufferGeometry()
+        geometry.setAttribute('position', new THREE.BufferAttribute(data.vertices, 3))
+        geometry.setIndex(new THREE.BufferAttribute(data.triangles, 1))
+        // Never added to the scene: only raycast against
+        const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial())
+        const edgeGeometry = new THREE.BufferGeometry()
+        edgeGeometry.setAttribute('position', new THREE.BufferAttribute(data.edges, 3))
+        const ghost = new THREE.LineSegments(
+          edgeGeometry,
+          new THREE.LineBasicMaterial({ color: this.colors.highlight, transparent: true, opacity: 0.45, depthTest: false }),
+        )
+        ghost.renderOrder = 6
+        this.ghost.add(ghost)
+        return { mesh, data, edges: edgeLines(data), faces: faceTriangles(data) }
+      })
+    }
+    this.showPicked()
+    this.requestRender()
+  }
+
+  /** Offers edges or faces for picking (for fillet, chamfer, shell), or stops with undefined */
+  setModifierPicking(picking: ModifierPicking | undefined): void {
+    this.modifier = picking
+    clearGroup(this.hover)
+    this.showPicked()
+    this.requestRender()
+  }
+
+  /** Index of the edge line a remembered midpoint stands for */
+  private matchEdge(point: Vec3): { body: number; edge: number } | undefined {
+    const p = v3(point)
+    let best: { body: number; edge: number } | undefined
+    let bestDistance = PICK_MATCH_MM
+    this.pickBodies.forEach(({ edges }, body) =>
+      edges.forEach((line, edge) => {
+        const d = distanceToPolyline(p, line.points)
+        if (d <= bestDistance) {
+          best = { body, edge }
+          bestDistance = d
+        }
+      }),
+    )
+    return best
+  }
+
+  private matchFace(point: Vec3): { body: number; face: number } | undefined {
+    const p = v3(point)
+    let best: { body: number; face: number } | undefined
+    let bestDistance = PICK_MATCH_MM
+    this.pickBodies.forEach(({ faces }, body) =>
+      faces.forEach((triangles, face) => {
+        const d = distanceToFace(p, triangles)
+        if (d <= bestDistance) {
+          best = { body, face }
+          bestDistance = d
+        }
+      }),
+    )
+    return best
+  }
+
+  /** Highlights the picks made so far */
+  private showPicked(): void {
+    clearGroup(this.picked)
+    const modifier = this.modifier
+    if (!modifier) return
+    for (const pick of modifier.picks) {
+      if (modifier.mode === 'edges') {
+        const hit = this.matchEdge(pick)
+        if (hit) this.picked.add(this.thickLine(this.pickBodies[hit.body]!.edges[hit.edge]!.points, this.colors.regionPicked))
+      } else {
+        const hit = this.matchFace(pick)
+        if (hit) this.picked.add(this.faceHighlight(this.pickBodies[hit.body]!.data, hit.face, this.colors.regionPicked, 0.55))
+      }
+    }
+  }
+
+  private thickLine(points: THREE.Vector3[], color: string): THREE.Object3D {
+    const positions: number[] = []
+    for (let i = 1; i < points.length; i++) positions.push(...points[i - 1]!.toArray(), ...points[i]!.toArray())
+    const geometry = new LineSegmentsGeometry().setPositions(positions)
+    const material = new LineMaterial({ color, linewidth: 4, depthTest: false, transparent: true })
+    material.resolution.set(this.width, this.height)
+    this.lineMaterials.push(material)
+    material.addEventListener('dispose', () => this.lineMaterials.splice(this.lineMaterials.indexOf(material), 1))
+    const line = new LineSegments2(geometry, material)
+    line.renderOrder = 8
+    return line
+  }
+
+  private faceHighlight(data: BodyMesh, faceIndex: number, color: string, opacity: number): THREE.Object3D {
+    const face = data.faces[faceIndex]!
+    const positions = new Float32Array(face.count * 3)
+    for (let i = 0; i < face.count; i++) {
+      const vertex = data.triangles[face.start + i]!
+      positions.set(data.vertices.subarray(vertex * 3, vertex * 3 + 3), i * 3)
+    }
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthTest: false, side: THREE.DoubleSide }))
+    mesh.renderOrder = 7
+    return mesh
+  }
+
+  /** The edge nearest to the pointer on screen, within EDGE_PICK_PX */
+  private edgeAt(event: PointerEvent): { body: number; edge: number } | undefined {
+    const rect = this.container.getBoundingClientRect()
+    const mouse = new THREE.Vector2(event.clientX - rect.left, event.clientY - rect.top)
+    const toScreen = (p: THREE.Vector3) => {
+      const ndc = p.clone().project(this.camera)
+      return new THREE.Vector2(((ndc.x + 1) / 2) * this.width, ((1 - ndc.y) / 2) * this.height)
+    }
+    let best: { body: number; edge: number } | undefined
+    let bestDistance = EDGE_PICK_PX
+    this.pickBodies.forEach(({ edges }, body) =>
+      edges.forEach((line, edge) => {
+        const screen = line.points.map(toScreen)
+        for (let i = 1; i < screen.length; i++) {
+          const a = screen[i - 1]!
+          const b = screen[i]!
+          const ab = b.clone().sub(a)
+          const t = Math.max(0, Math.min(1, mouse.clone().sub(a).dot(ab) / (ab.lengthSq() || 1)))
+          const d = a.clone().add(ab.multiplyScalar(t)).distanceTo(mouse)
+          if (d < bestDistance) {
+            best = { body, edge }
+            bestDistance = d
+          }
+        }
+      }),
+    )
+    return best
+  }
+
+  /** The face under the pointer */
+  private faceAt(event: PointerEvent): { body: number; face: number; point: THREE.Vector3 } | undefined {
+    const rect = this.container.getBoundingClientRect()
+    const pointer = new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1)
+    this.raycaster.setFromCamera(pointer, this.camera)
+    const [hit] = this.raycaster.intersectObjects(
+      this.pickBodies.map((b) => b.mesh),
+      false,
+    )
+    if (!hit || hit.faceIndex === undefined || hit.faceIndex === null) return undefined
+    const body = this.pickBodies.findIndex((b) => b.mesh === hit.object)
+    const index = hit.faceIndex * 3
+    const face = this.pickBodies[body]!.data.faces.findIndex((f) => index >= f.start && index < f.start + f.count)
+    return face < 0 ? undefined : { body, face, point: hit.point }
+  }
+
+  private hoverModifier(event: PointerEvent): void {
+    clearGroup(this.hover)
+    const modifier = this.modifier!
+    let found = false
+    if (modifier.mode === 'edges') {
+      const hit = this.edgeAt(event)
+      if (hit) {
+        this.hover.add(this.thickLine(this.pickBodies[hit.body]!.edges[hit.edge]!.points, this.colors.highlight))
+        found = true
+      }
+    } else {
+      const hit = this.faceAt(event)
+      if (hit) {
+        this.hover.add(this.faceHighlight(this.pickBodies[hit.body]!.data, hit.face, this.colors.highlight, 0.45))
+        found = true
+      }
+    }
+    this.input.style.cursor = found ? 'pointer' : ''
+    this.requestRender()
+  }
+
+  private clickModifier(event: PointerEvent): void {
+    const modifier = this.modifier!
+    if (modifier.mode === 'edges') {
+      const hit = this.edgeAt(event)
+      if (!hit) return
+      const existing = modifier.picks.findIndex((pick) => {
+        const match = this.matchEdge(pick)
+        return match?.body === hit.body && match.edge === hit.edge
+      })
+      const midpoint = this.pickBodies[hit.body]!.edges[hit.edge]!.midpoint
+      this.callbacks.onEdgeClick(midpoint.toArray() as Vec3, existing >= 0 ? existing : undefined)
+    } else {
+      const hit = this.faceAt(event)
+      if (!hit) return
+      const existing = modifier.picks.findIndex((pick) => {
+        const match = this.matchFace(pick)
+        return match?.body === hit.body && match.face === hit.face
+      })
+      this.callbacks.onFaceClick(hit.point.toArray() as Vec3, existing >= 0 ? existing : undefined)
+    }
   }
 
   /**
@@ -570,7 +875,9 @@ export class SceneView {
       this.applySketchView()
       return
     }
-    if (!pressed && this.pickTargets.length && !this.view2d) this.updateHover(event)
+    if (pressed || this.view2d) return
+    if (this.modifier && !this.planePickResolve) this.hoverModifier(event)
+    else if (this.pickTargets.length) this.updateHover(event)
   }
 
   private onPointerUp = (event: PointerEvent) => {
@@ -579,6 +886,10 @@ export class SceneView {
     if (!pressed || pressed.panning) return
     const moved = Math.hypot(event.clientX - pressed.x, event.clientY - pressed.y)
     if (pressed.button !== 0 || moved > CLICK_TOLERANCE_PX || this.view2d) return
+    if (this.modifier && !this.planePickResolve) {
+      this.clickModifier(event)
+      return
+    }
     const result = this.pickAt(event)
     if (!result) return
     if (result.kind === 'plane' && this.planePickResolve) this.finishPlanePick(result.pick)
@@ -634,6 +945,7 @@ export class SceneView {
     this.renderer.domElement.style.height = '100%'
     this.camera.aspect = width / height
     this.camera.updateProjectionMatrix()
+    for (const material of this.lineMaterials) material.resolution.set(width, height)
     if (this.view2d) this.applySketchView()
     this.requestRender()
   }

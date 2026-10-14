@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Button from 'primevue/button'
 import type { DocumentService } from 'ribo-contracts'
-import { isProfileFeature, isSketch, sketchOf, type ProfileFeature } from 'ribo-model'
+import { isBodyModifier, isEdgeFeature, isFillet, isProfileFeature, isShell, isSketch, sketchOf, type EdgeFeature, type ProfileFeature, type Shell } from 'ribo-model'
 import { SceneView, type SceneColors, type ViewDirection } from './SceneView'
 import type { ViewportController } from './ViewportController'
 
@@ -61,6 +61,43 @@ const profileFeature = computed<ProfileFeature | undefined>(() => {
   return !sketchMode.value && isProfileFeature(selected) && selected.sketch ? selected : undefined
 })
 
+/** The fillet, chamfer or shell whose edges or faces are offered for picking */
+const modifierFeature = computed<EdgeFeature | Shell | undefined>(() => {
+  const selected = props.document.selection.value
+  return !sketchMode.value && isBodyModifier(selected) ? selected : undefined
+})
+
+const modifierBanner = computed(() => {
+  const feature = modifierFeature.value
+  if (!feature) return undefined
+  if (isShell(feature)) return 'Flächen anklicken, die offen bleiben sollen · erneuter Klick entfernt sie'
+  return `Kanten zum ${isFillet(feature) ? 'Abrunden' : 'Fasen'} anklicken · erneuter Klick entfernt sie`
+})
+
+function updateBodies() {
+  if (!scene) return
+  const hadBodies = scene.hasBodies()
+  // The result is shown, also while editing a fillet; its edges are picked on the bodies before it
+  scene.setBodies(props.document.result.value?.bodies ?? [])
+  scene.setPickBodies(modifierFeature.value ? (props.document.inputResult.value?.bodies ?? []) : undefined)
+  if (!hadBodies && scene.hasBodies() && !sketchMode.value) scene.view('iso')
+  updateModifier()
+}
+
+function updateModifier() {
+  if (!scene) return
+  const feature = modifierFeature.value
+  if (!feature) {
+    scene.setModifierPicking(undefined)
+    return
+  }
+  if (isEdgeFeature(feature)) {
+    scene.setModifierPicking({ mode: 'edges', picks: feature.edges.toArray().map((e) => [e.x, e.y, e.z]) })
+  } else {
+    scene.setModifierPicking({ mode: 'faces', picks: feature.faces.toArray().map((f) => [f.x, f.y, f.z]) })
+  }
+}
+
 function updateSketches() {
   if (!scene) return
   const document = props.document
@@ -71,7 +108,7 @@ function updateSketches() {
     return
   }
   const features = document.design.value.features.toArray()
-  const consumed = new Set(plan.features.flatMap((f) => (f.kind === 'sketch' ? [] : [f.sketch])))
+  const consumed = new Set(plan.features.flatMap((f) => (f.kind === 'extrude' || f.kind === 'revolve' ? [f.sketch] : [])))
   const visible = new Set(plan.features.flatMap((f) => (f.kind === 'sketch' && !consumed.has(f.index) ? [f.index] : [])))
   const selectedSketch = sketchOf(document.selection.value)
   const feature = profileFeature.value
@@ -90,8 +127,8 @@ function updateRegions() {
     return
   }
   const index = props.document.design.value.features.indexOf(feature)
-  const planFeature = props.document.plan.value.features.find((f) => f.kind !== 'sketch' && f.index === index)
-  const picked = new Set(planFeature && planFeature.kind !== 'sketch' ? planFeature.profiles : [])
+  const planFeature = props.document.plan.value.features.find((f) => f.index === index)
+  const picked = new Set(planFeature && (planFeature.kind === 'extrude' || planFeature.kind === 'revolve') ? planFeature.profiles : [])
   scene.setProfileRegions(planned, picked)
 }
 
@@ -99,8 +136,21 @@ function view(direction: ViewDirection) {
   scene?.view(direction)
 }
 
+/** A feature whose step is open in the viewport: picking profiles, edges or faces */
+const openStep = computed(() => profileFeature.value ?? modifierFeature.value)
+
+/** Closes the open step; its changes are already applied */
+function applyStep() {
+  props.document.select(undefined)
+}
+
 function onKeyDown(event: KeyboardEvent) {
   if (event.key === 'Escape' && props.controller.picking.value) props.controller.cancelPick()
+  const target = event.target as HTMLElement | null
+  if (event.key === 'Enter' && openStep.value && !target?.closest('input, textarea, select, [contenteditable="true"]')) {
+    event.preventDefault()
+    applyStep()
+  }
 }
 
 const onColorScheme = () => scene?.setColors(colors())
@@ -112,6 +162,14 @@ onMounted(() => {
       const feature = profileFeature.value
       if (feature) props.document.toggleProfile(feature, point)
     },
+    onEdgeClick: (midpoint, existing) => {
+      const feature = modifierFeature.value
+      if (isEdgeFeature(feature)) props.document.toggleEdge(feature, midpoint, existing)
+    },
+    onFaceClick: (point, existing) => {
+      const feature = modifierFeature.value
+      if (isShell(feature)) props.document.toggleFace(feature, point, existing)
+    },
   })
   scene.view('iso')
   props.controller.attach(scene)
@@ -119,15 +177,8 @@ onMounted(() => {
   colorScheme.addEventListener('change', onColorScheme)
   window.addEventListener('keydown', onKeyDown)
 
-  watch(
-    () => props.document.result.value,
-    (result) => {
-      const hadBodies = scene!.hasBodies()
-      scene!.setBodies(result?.bodies ?? [])
-      if (!hadBodies && scene!.hasBodies() && !sketchMode.value) scene!.view('iso')
-    },
-    { immediate: true },
-  )
+  watch([() => props.document.result.value, () => props.document.inputResult.value, modifierFeature], updateBodies, { immediate: true })
+  watch(() => props.document.revision.value, updateModifier)
   watch(
     [() => props.document.plan.value, () => props.document.selection.value, sketchMode],
     () => {
@@ -155,7 +206,10 @@ onBeforeUnmount(() => {
     <div v-if="controller.picking.value" class="ribo-viewport-banner">
       <i class="pi pi-hand-pointer" /> Ebene oder ebene Fläche für die Skizze wählen · <kbd>Esc</kbd> bricht ab
     </div>
-    <div v-else-if="profileFeature" class="ribo-viewport-banner subtle">Profile anklicken, um sie hinzuzufügen oder zu entfernen</div>
+    <div v-else-if="openStep" class="ribo-viewport-banner subtle step">
+      <span>{{ modifierBanner ?? 'Profile anklicken, um sie hinzuzufügen oder zu entfernen' }}</span>
+      <Button label="OK" icon="pi pi-check" severity="success" size="small" @click="applyStep" />
+    </div>
 
     <div v-if="!sketchMode" class="ribo-viewport-views">
       <Button v-tooltip.left="'Alles zeigen'" icon="pi pi-expand" severity="secondary" size="small" text @click="view('iso')" />
@@ -199,6 +253,14 @@ onBeforeUnmount(() => {
   font-size: 0.85rem;
   pointer-events: none;
   white-space: nowrap;
+}
+
+.ribo-viewport-banner.step {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.25rem 0.3rem 0.25rem 0.9rem;
+  pointer-events: auto;
 }
 
 .ribo-viewport-banner.subtle {
