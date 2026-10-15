@@ -12,7 +12,10 @@
 export const JointKind = {
   Rigid: 'Rigid',
   Revolute: 'Revolute',
-  Slider: 'Slider'
+  Slider: 'Slider',
+  Cylindrical: 'Cylindrical',
+  Planar: 'Planar',
+  Ball: 'Ball'
 } as const;
 
 export type JointKind = typeof JointKind[keyof typeof JointKind];
@@ -31,5 +34,8 @@ export function getJointKindByLiteral(literal: string): JointKind | undefined {
   if (literal === 'Rigid') return JointKind.Rigid;
   if (literal === 'Revolute') return JointKind.Revolute;
   if (literal === 'Slider') return JointKind.Slider;
+  if (literal === 'Cylindrical') return JointKind.Cylindrical;
+  if (literal === 'Planar') return JointKind.Planar;
+  if (literal === 'Ball') return JointKind.Ball;
   return undefined;
 }

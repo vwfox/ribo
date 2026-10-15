@@ -52,6 +52,7 @@ Der Ablauf orientiert sich an Fusion 360:
 12. **Zeitleiste**:
    - Unterdrücken, bis zu einem Feature zurückrollen (neue Features landen am Marker)
    - Doppelklick auf eine Skizze bearbeitet sie.
+   - Sie zeigt immer das aktive Bauteil (grüner Punkt im Browser); jedes Bauteil hat seinen eigenen Marker.
 13. **Parameter** treiben Bemaßungen und Abstände, z. B. `wand * 2 + 0.4`.
 14. **Rückgängig/Wiederholen** mit Strg+Z / Strg+Y.
 15. **3D-Druck** (Panel rechts):
@@ -61,16 +62,26 @@ Der Ablauf orientiert sich an Fusion 360:
     - Drucker-Vorlagen oder eigene Bettgröße, Material, Düse; gespeichert im Browser
 16. **Als 3MF exportieren** (Strg+E) für den Slicer, außerdem STL und **STEP** für andere CAD-Programme.
 
-**Bauteile und Gelenke**
+**Bauteile und Beziehungen**
 - **Neues Bauteil** legt ein Bauteil an und macht es aktiv: Neue Skizzen und Features landen dort und wirken nur auf dessen Körper. Im Browser aktiviert der Kreis neben dem Namen ein Bauteil, das Auge blendet es aus.
-- **Gelenk** (J): erst am stehenden, dann am beweglichen Bauteil einen Ursprung anklicken – eine Kreiskante (Mittelpunkt und Achse, ideal für Scharniere) oder eine ebene Fläche (Mitte und Normale). Arten: *Starr* (Ausrichten mit Abstand und Drehung), *Scharnier* (Winkel, mit Schieberegler bewegbar), *Schiebe* (Weg). „Umkehren“ dreht die Ausrichtung um.
-- Bauteile ohne Gelenk liegen an ihrer eigenen Position und Drehung; *Fixiert* hält ein Bauteil fest. Exportiert wird in der zusammengebauten Lage.
+- **Ausrichten** und **Gelenk** (J) legen eine Beziehung an: erst Bezug 1 am stehenden, dann Bezug 2 am beweglichen Bauteil anklicken – eine ebene Fläche (Mitte und Normale), eine Kreiskante (Mittelpunkt und Achse, ideal für Scharniere) oder eine gerade Kante (Kantenmitte, Richtung entlang der Kante). So liegt z. B. die untere Kante eines Bauteils an der oberen Kante eines anderen.
+- **Ausrichtungen** legen nur fest, was die Bezüge sagen, und lassen sich kombinieren:
+  - Fläche ↔ Fläche: in einer Ebene (*aufeinander* oder *bündig*, mit Abstand) – Verschieben in der Ebene und Drehen bleiben frei,
+  - Kante ↔ Kante: auf einer Linie (gleich gerichtet oder gegenläufig),
+  - Kreiskante ↔ Kreiskante: gleiche Achse, mit Abstand entlang der Achse,
+  - Kante ↔ Fläche: Kante in der Ebene; Kreiskante ↔ Fläche: Kreis auf der Fläche; Kreiskante ↔ Kante: Mittelpunkt auf der Linie.
+  Ein Löser findet die Lage, die alle Ausrichtungen erfüllt und der eigenen Lage des Bauteils am nächsten ist. Beispiel: Fläche auf Fläche plus zwei Kanten an Kanten legen ein Bauteil vollständig fest. Was frei bleibt, verschiebt *Bauteil bewegen*; Widersprüche werden als Problem gemeldet.
+- **Gelenke** (*Scharnier*, *Schiebe*, *Zylinder*, *Planar*, *Kugel*) verbinden zwei Bezüge als Ganzes; die beweglichen Werte haben Schieberegler, *Aufeinander*/*Bündig* legt fest, ob die Achsen gegeneinander oder gleich gerichtet liegen.
+- In den Eigenschaften lassen sich Bezug 1 oder 2 einzeln neu wählen, die Bezüge tauschen (das andere Bauteil bewegt sich) und eine Ausrichtung *in die Lage übernehmen* (Position ins Bauteil schreiben, Beziehung entfernen).
+- Das andockbare Panel **Beziehungen** zeigt je Bauteil, ob es *fixiert*, *bestimmt*, *beweglich*, teilweise bestimmt (*n frei*: verbleibende Freiheitsgrade) oder *frei* ist, und darunter seine Beziehungen (Bezugsarten, Gegenbauteil, aufeinander/bündig, Abstand); fehlende Bezüge und Probleme sind rot markiert, Unterdrücken und Löschen direkt dort.
+- **Bauteil bewegen** (M): Griffe im Ansichtsfenster verschieben oder drehen das ausgewählte (sonst das aktive) Bauteil – ein Undo-Schritt je Zug. In Ausrichtungen gleitet es nur in deren freien Richtungen; Bauteile an Gelenken bewegt man über deren Werte.
+- Bauteile ohne Beziehung liegen an ihrer eigenen Position und Drehung; *Fixiert* hält ein Bauteil fest. Exportiert wird in der zusammengebauten Lage.
 
-**Fenster**: Browser, Zeitleiste, Eigenschaften und 3D-Druck lassen sich am Titel in einen anderen Bereich (links, rechts, unten) ziehen, mit ⧉ herauslösen und als Fenster frei verschieben; am Rand rasten sie wieder ein. „Fensteranordnung zurücksetzen“ stellt den Anfang wieder her.
+**Fenster**: Browser, Zeitleiste, Eigenschaften und 3D-Druck lassen sich am Titel in einen anderen Bereich (links, rechts, unten) ziehen, mit ⧉ herauslösen und als Fenster frei verschieben; am Rand rasten sie wieder ein. Liegen mehrere Panels übereinander, verteilt der Trenner dazwischen die Höhe. „Fensteranordnung zurücksetzen“ stellt den Anfang wieder her.
 
 Navigation in 3D: links drehen, rechts oder Mitte verschieben, das Rad zoomt zum Mauszeiger. In der Skizze verschieben die rechte und die mittlere Taste.
 
-Gespeichert wird als emfts-JSON (`.ribo.json`, Strg+S). Der letzte Stand liegt außerdem automatisch im Browser.
+Gespeichert wird als emfts-JSON (`.ribo.json`, Strg+S) nach dem Modell `packages/ribo-model/model/ribo.ecore` – mit Features, Zeitleiste (Reihenfolge und Marker je Bauteil), Skizzen samt Abhängigkeiten, Bauteilen und Gelenken. Öffnen liest auch XMI. Der letzte Stand liegt außerdem automatisch im Browser.
 
 ## Aufbau
 
@@ -86,7 +97,7 @@ Der Aufbau folgt gene. Eine dünne Vite-App (`src/main.ts`) registriert die Shar
 | `ribo-document` | aktuelles Design, Ausdrücke, Skizzen-Solver (PlaneGCS), Baugruppen-Kinematik, Undo/Redo, Plan-Compiler, Rebuild |
 | `ribo-viewport` | three.js-Ansicht (Z oben, 220-mm-Druckbett), 2D-Skizzenansicht, Ebenen- und Profilwahl |
 | `ribo-sketcher` | Skizzenmodus: Werkzeuge, Abhängigkeiten, Bemaßungen, SVG-Overlay, Skizzenpalette |
-| `ribo-timeline` | Objektbrowser (Bauteile, Skizzen, Features, Körper, Gelenke), Zeitleiste mit Marker, Erstell-Aktionen, Undo/Redo |
+| `ribo-timeline` | Objektbrowser (Design, Bauteile, Skizzen, Features, Körper), Beziehungen, Zeitleiste mit Marker, Erstell-Aktionen, Undo/Redo |
 | `ribo-properties` | Eigenschaften des gewählten Objekts |
 | `ribo-print` | Druck-Checks (Bett, Überhänge, Wandstärke per BVH-Raycasting), Materialabschätzung, Export |
 | `ribo-io` | Neu, Öffnen, Speichern, Autosave, Export (3MF, STL, STEP) |

@@ -28,6 +28,36 @@ function onDragLeave(event: DragEvent) {
   if (!(event.currentTarget as HTMLElement).contains(to) && props.layout.dropTarget.value === props.area) props.layout.setDropTarget(undefined)
 }
 
+const isCollapsed = (panel: PanelContribution) => props.layout.state.collapsed.includes(panel.id)
+
+const sections: (HTMLElement | undefined)[] = []
+const MIN_SECTION_PX = 60
+
+/** Dragging the divider above panel i shares the height of it and the panel before it anew */
+function startSplit(event: PointerEvent, i: number) {
+  const above = props.panels[i - 1]
+  const below = props.panels[i]
+  const top = sections[i - 1]
+  const bottom = sections[i]
+  if (!above || !below || !top || !bottom) return
+  const divider = event.currentTarget as HTMLElement
+  divider.setPointerCapture(event.pointerId)
+  const start = event.clientY
+  const heights = [top.getBoundingClientRect().height, bottom.getBoundingClientRect().height] as const
+  const total = heights[0] + heights[1]
+  const weights = props.layout.weightOf(above.id) + props.layout.weightOf(below.id)
+  const move = (e: PointerEvent) => {
+    const upper = Math.min(total - MIN_SECTION_PX, Math.max(MIN_SECTION_PX, heights[0] + e.clientY - start))
+    props.layout.setWeight(above.id, (weights * upper) / total)
+    props.layout.setWeight(below.id, (weights * (total - upper)) / total)
+  }
+  const up = () => {
+    divider.removeEventListener('pointermove', move)
+    divider.removeEventListener('pointerup', up)
+  }
+  divider.addEventListener('pointermove', move)
+  divider.addEventListener('pointerup', up)
+}
 </script>
 
 <template>
@@ -55,10 +85,23 @@ function onDragLeave(event: DragEvent) {
     </template>
 
     <template v-else>
-      <section v-for="panel in panels" :key="panel.id" class="ribo-dock-section" :class="{ collapsed: layout.state.collapsed.includes(panel.id) }">
-        <PanelHeader :panel="panel" :layout="layout" :collapsed="layout.state.collapsed.includes(panel.id)" collapsible />
-        <div v-show="!layout.state.collapsed.includes(panel.id)" class="ribo-dock-section-body"><component :is="panel.component" /></div>
-      </section>
+      <template v-for="(panel, i) in panels" :key="panel.id">
+        <div
+          v-if="i > 0 && !isCollapsed(panel) && !isCollapsed(panels[i - 1]!)"
+          class="ribo-dock-divider"
+          title="Ziehen verteilt die Höhe"
+          @pointerdown.prevent="startSplit($event, i)"
+        />
+        <section
+          :ref="(el) => (sections[i] = el as HTMLElement | undefined)"
+          class="ribo-dock-section"
+          :class="{ collapsed: isCollapsed(panel) }"
+          :style="isCollapsed(panel) ? undefined : { flexGrow: layout.weightOf(panel.id) }"
+        >
+          <PanelHeader :panel="panel" :layout="layout" :collapsed="isCollapsed(panel)" collapsible />
+          <div v-show="!isCollapsed(panel)" class="ribo-dock-section-body"><component :is="panel.component" /></div>
+        </section>
+      </template>
     </template>
 
     <div v-if="isTarget" class="ribo-dock-hint"><i class="pi pi-arrow-down" /> Hier andocken</div>
@@ -114,9 +157,15 @@ function onDragLeave(event: DragEvent) {
   pointer-events: none;
 }
 
-.ribo-dock-left,
-.ribo-dock-right {
-  overflow-y: auto;
+.ribo-dock-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.ribo-dock-section.collapsed {
+  flex: none;
 }
 
 .ribo-dock-section + .ribo-dock-section {
@@ -124,7 +173,29 @@ function onDragLeave(event: DragEvent) {
 }
 
 .ribo-dock-section-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   padding: 0 0.75rem 0.75rem;
+}
+
+.ribo-dock-divider {
+  flex: none;
+  height: 5px;
+  margin: -2px 0;
+  position: relative;
+  z-index: 1;
+  cursor: row-resize;
+  touch-action: none;
+}
+
+.ribo-dock-divider:hover,
+.ribo-dock-divider:active {
+  background: var(--p-primary-color);
+}
+
+.ribo-dock-divider + .ribo-dock-section {
+  border-top: 1px solid var(--p-content-border-color);
 }
 
 .ribo-dock-tabs {

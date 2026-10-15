@@ -33,6 +33,8 @@ interface Stored {
   /** Active tab of the bottom area */
   bottomTab?: string
   sizes: { left: number; right: number; bottom: number }
+  /** Share of the height each panel gets when several stack in a side area (default 1) */
+  weights: Record<string, number>
 }
 
 const KEY = 'ribo.layout'
@@ -40,10 +42,10 @@ const SIZE_LIMITS = { left: [180, 600], right: [220, 600], bottom: [90, 600] } a
 const SNAP_PX = 24
 
 function load(): Stored {
-  const empty: Stored = { placements: {}, collapsed: [], sizes: { left: 300, right: 320, bottom: 150 } }
+  const empty: Stored = { placements: {}, collapsed: [], sizes: { left: 300, right: 320, bottom: 150 }, weights: {} }
   try {
     const stored = JSON.parse(localStorage.getItem(KEY) ?? 'null') as Partial<Stored> | null
-    return { ...empty, ...(stored ?? {}), sizes: { ...empty.sizes, ...(stored?.sizes ?? {}) } }
+    return { ...empty, ...(stored ?? {}), sizes: { ...empty.sizes, ...(stored?.sizes ?? {}) }, weights: { ...(stored?.weights ?? {}) } }
   } catch {
     return empty
   }
@@ -127,9 +129,16 @@ export function createLayout() {
     state.sizes[area] = Math.round(Math.min(max, Math.max(min, size)))
   }
 
+  const weightOf = (id: string) => state.weights[id] ?? 1
+
+  function setWeight(id: string, weight: number) {
+    state.weights[id] = weight
+  }
+
   function reset() {
     state.placements = {}
     state.collapsed = []
+    state.weights = {}
   }
 
   return {
@@ -148,6 +157,8 @@ export function createLayout() {
     showTab,
     toggleCollapsed,
     resize,
+    weightOf,
+    setWeight,
     reset,
   }
 }

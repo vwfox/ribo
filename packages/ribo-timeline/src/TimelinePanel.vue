@@ -20,12 +20,26 @@ onMounted(() => {
 })
 onBeforeUnmount(() => observer?.disconnect())
 
+/** The timeline shown is the active component's (0: the design itself) */
+const shown = computed(() => {
+  void props.document.revision.value
+  return props.document.componentIndexOf(props.document.design.value.activeComponent)
+})
+
+const shownName = computed(() => (shown.value === 0 ? 'Hauptbauteil' : (props.document.componentAt(shown.value)?.name ?? `Bauteil ${shown.value}`)))
+
 const model = computed(() => {
   void props.document.revision.value
   const design = props.document.design.value
-  const features = design.features.toArray()
-  const rollback = design.rollback ?? -1
-  return { features, marker: rollback >= 0 ? rollback : features.length }
+  const owner = props.document.componentAt(shown.value)
+  // The features living in the shown component, with their place in the whole timeline
+  const items = design.features
+    .toArray()
+    .map((feature, index) => ({ feature, index }))
+    .filter(({ feature }) => (feature.component ?? undefined) === owner)
+  const rollback = (owner ?? design).rollback ?? -1
+  const marker = rollback < 0 ? items.length : items.findIndex((item) => item.index >= rollback)
+  return { items, owner, marker: marker < 0 ? items.length : marker }
 })
 
 const problems = computed(() => {
@@ -49,7 +63,12 @@ function toggleSuppressed(feature: Feature) {
   })
 }
 
-const setMarker = (index: number) => props.document.setRollback(index >= model.value.features.length ? -1 : Math.max(0, index))
+/** Puts the marker before the k-th feature of the shown component */
+const setMarker = (k: number) => {
+  const { items, owner } = model.value
+  const clamped = Math.max(0, k)
+  props.document.setRollback(clamped >= items.length ? -1 : items[clamped]!.index, owner)
+}
 
 /** Dragging the marker: it lands in the gap nearest to the pointer */
 function dragMarker(event: PointerEvent) {
@@ -89,11 +108,14 @@ function titleOf(feature: Feature, index: number) {
       <Button v-tooltip="'Zum Anfang'" icon="pi pi-step-backward-alt" size="small" text rounded @click="setMarker(0)" />
       <Button v-tooltip="'Ein Schritt zurück'" icon="pi pi-caret-left" size="small" text rounded @click="setMarker(model.marker - 1)" />
       <Button v-tooltip="'Ein Schritt vor'" icon="pi pi-caret-right" size="small" text rounded @click="setMarker(model.marker + 1)" />
-      <Button v-tooltip="'Zum Ende'" icon="pi pi-step-forward-alt" size="small" text rounded @click="setMarker(model.features.length)" />
+      <Button v-tooltip="'Zum Ende'" icon="pi pi-step-forward-alt" size="small" text rounded @click="setMarker(model.items.length)" />
+      <span v-if="document.design.value.components.size()" v-tooltip="'Zeitleiste des aktiven Bauteils – im Browser umschalten'" class="ribo-timeline-component">
+        <i class="pi pi-circle-fill" /> {{ shownName }}
+      </span>
     </div>
 
     <div class="ribo-timeline-strip">
-      <template v-for="(feature, index) in model.features" :key="index">
+      <template v-for="({ feature, index: global }, index) in model.items" :key="global">
         <div v-if="index === model.marker" class="ribo-timeline-marker" title="Zeitleisten-Marker ziehen" @pointerdown="dragMarker" />
         <div
           class="ribo-timeline-item"
@@ -101,15 +123,15 @@ function titleOf(feature: Feature, index: number) {
             selected: isSelected(feature),
             suppressed: feature.suppressed,
             rolledBack: index >= model.marker,
-            broken: problems.has(index),
+            broken: problems.has(global),
           }"
-          :title="titleOf(feature, index)"
+          :title="titleOf(feature, global)"
           @click="document.select(feature)"
           @dblclick="open(feature)"
         >
           <i :class="iconOf(feature)" />
           <span v-if="!horizontal" class="name">{{ feature.name }}</span>
-          <i v-if="problems.has(index)" class="pi pi-exclamation-triangle problem" />
+          <i v-if="problems.has(global)" class="pi pi-exclamation-triangle problem" />
           <Button
             v-if="!horizontal"
             v-tooltip="feature.suppressed ? 'Aktivieren' : 'Unterdrücken'"
@@ -122,8 +144,8 @@ function titleOf(feature: Feature, index: number) {
           />
         </div>
       </template>
-      <div v-if="model.marker >= model.features.length" class="ribo-timeline-marker" title="Zeitleisten-Marker ziehen" @pointerdown="dragMarker" />
-      <span v-if="model.features.length === 0" class="ribo-timeline-empty">Noch keine Features – starte mit „Skizze erstellen“ (S).</span>
+      <div v-if="model.marker >= model.items.length" class="ribo-timeline-marker" title="Zeitleisten-Marker ziehen" @pointerdown="dragMarker" />
+      <span v-if="model.items.length === 0" class="ribo-timeline-empty">In diesem Bauteil noch keine Features – starte mit „Skizze erstellen“ (S).</span>
     </div>
   </div>
 </template>
@@ -145,7 +167,24 @@ function titleOf(feature: Feature, index: number) {
 
 .ribo-timeline-controls {
   display: flex;
+  align-items: center;
+  gap: 0.25rem;
   flex: none;
+}
+
+.ribo-timeline-component {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--p-primary-color);
+  white-space: nowrap;
+}
+
+.ribo-timeline-component i {
+  font-size: 0.6rem;
 }
 
 .ribo-timeline-strip {

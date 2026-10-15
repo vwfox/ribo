@@ -19,17 +19,19 @@ export class ComponentImpl extends BasicEObject implements Component {
   static readonly NAME: number = 0;
   static readonly GROUNDED: number = 1;
   static readonly VISIBLE: number = 2;
-  static readonly POSITION_X: number = 3;
-  static readonly POSITION_Y: number = 4;
-  static readonly POSITION_Z: number = 5;
-  static readonly ROTATION_X: number = 6;
-  static readonly ROTATION_Y: number = 7;
-  static readonly ROTATION_Z: number = 8;
+  static readonly ROLLBACK: number = 3;
+  static readonly POSITION_X: number = 4;
+  static readonly POSITION_Y: number = 5;
+  static readonly POSITION_Z: number = 6;
+  static readonly ROTATION_X: number = 7;
+  static readonly ROTATION_Y: number = 8;
+  static readonly ROTATION_Z: number = 9;
 
   // Private fields
   private _name?: string;
   private _grounded: boolean = false;
   private _visible: boolean = true;
+  private _rollback: number = -1;
   private _positionX: string = "0";
   private _positionY: string = "0";
   private _positionZ: string = "0";
@@ -112,6 +114,30 @@ export class ComponentImpl extends BasicEObject implements Component {
         isTouch: () => false,
         isReset: () => false,
         getFeatureID: () => ComponentImpl.VISIBLE,
+        merge: () => false
+      });
+    }
+  }
+
+  get rollback(): number {
+    return this._rollback!;
+  }
+
+  set rollback(value: number) {
+    const oldValue = this._rollback;
+    this._rollback = value;
+    if (this.eDeliver()) {
+      this.eNotify({
+        getNotifier: () => this,
+        getEventType: () => 1, // SET
+        getFeature: () => this.eClass().getEStructuralFeature(ComponentImpl.ROLLBACK),
+        getOldValue: () => oldValue,
+        getNewValue: () => value,
+        getPosition: () => -1,
+        wasSet: () => true,
+        isTouch: () => false,
+        isReset: () => false,
+        getFeatureID: () => ComponentImpl.ROLLBACK,
         merge: () => false
       });
     }
@@ -275,6 +301,8 @@ export class ComponentImpl extends BasicEObject implements Component {
         return this.grounded;
       case ComponentImpl.VISIBLE:
         return this.visible;
+      case ComponentImpl.ROLLBACK:
+        return this.rollback;
       case ComponentImpl.POSITION_X:
         return this.positionX;
       case ComponentImpl.POSITION_Y:
@@ -308,6 +336,10 @@ export class ComponentImpl extends BasicEObject implements Component {
         break;
       case ComponentImpl.VISIBLE:
         this.visible = newValue as boolean;
+        super.eSet(feature, newValue);
+        break;
+      case ComponentImpl.ROLLBACK:
+        this.rollback = newValue as number;
         super.eSet(feature, newValue);
         break;
       case ComponentImpl.POSITION_X:
@@ -351,6 +383,8 @@ export class ComponentImpl extends BasicEObject implements Component {
         return this._grounded !== false;
       case ComponentImpl.VISIBLE:
         return this._visible !== true;
+      case ComponentImpl.ROLLBACK:
+        return this._rollback !== -1;
       case ComponentImpl.POSITION_X:
         return this._positionX !== "0";
       case ComponentImpl.POSITION_Y:
@@ -382,6 +416,9 @@ export class ComponentImpl extends BasicEObject implements Component {
         return;
       case ComponentImpl.VISIBLE:
         this._visible = true;
+        return;
+      case ComponentImpl.ROLLBACK:
+        this._rollback = -1;
         return;
       case ComponentImpl.POSITION_X:
         this._positionX = "0";

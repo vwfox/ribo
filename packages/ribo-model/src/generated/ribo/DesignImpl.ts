@@ -24,14 +24,16 @@ export class DesignImpl extends BasicEObject implements Design {
   static readonly PARAMETERS: number = 1;
   static readonly FEATURES: number = 2;
   static readonly ROLLBACK: number = 3;
-  static readonly COMPONENTS: number = 4;
-  static readonly ACTIVE_COMPONENT: number = 5;
+  static readonly VISIBLE: number = 4;
+  static readonly COMPONENTS: number = 5;
+  static readonly ACTIVE_COMPONENT: number = 6;
 
   // Private fields
   private _name?: string;
   private _parameters!: EList<Parameter>;
   private _features!: EList<Feature>;
   private _rollback: number = -1;
+  private _visible: boolean = true;
   private _components!: EList<Component>;
   private _activeComponent?: Component;
 
@@ -105,6 +107,30 @@ export class DesignImpl extends BasicEObject implements Design {
     }
   }
 
+  get visible(): boolean {
+    return this._visible!;
+  }
+
+  set visible(value: boolean) {
+    const oldValue = this._visible;
+    this._visible = value;
+    if (this.eDeliver()) {
+      this.eNotify({
+        getNotifier: () => this,
+        getEventType: () => 1, // SET
+        getFeature: () => this.eClass().getEStructuralFeature(DesignImpl.VISIBLE),
+        getOldValue: () => oldValue,
+        getNewValue: () => value,
+        getPosition: () => -1,
+        wasSet: () => true,
+        isTouch: () => false,
+        isReset: () => false,
+        getFeatureID: () => DesignImpl.VISIBLE,
+        merge: () => false
+      });
+    }
+  }
+
   get components(): EList<Component> {
     if (!this._components) {
       this._components = createContainmentEList<any>(this, this.eClass().getEStructuralFeature('components') as EReference);
@@ -152,6 +178,8 @@ export class DesignImpl extends BasicEObject implements Design {
         return this.features;
       case DesignImpl.ROLLBACK:
         return this.rollback;
+      case DesignImpl.VISIBLE:
+        return this.visible;
       case DesignImpl.COMPONENTS:
         return this.components;
       case DesignImpl.ACTIVE_COMPONENT:
@@ -185,6 +213,10 @@ export class DesignImpl extends BasicEObject implements Design {
         this.rollback = newValue as number;
         super.eSet(feature, newValue);
         break;
+      case DesignImpl.VISIBLE:
+        this.visible = newValue as boolean;
+        super.eSet(feature, newValue);
+        break;
       case DesignImpl.COMPONENTS:
         this.components.clear();
         this.components.addAll(newValue as any[]);
@@ -213,6 +245,8 @@ export class DesignImpl extends BasicEObject implements Design {
         return this._features !== undefined && !this._features.isEmpty();
       case DesignImpl.ROLLBACK:
         return this._rollback !== -1;
+      case DesignImpl.VISIBLE:
+        return this._visible !== true;
       case DesignImpl.COMPONENTS:
         return this._components !== undefined && !this._components.isEmpty();
       case DesignImpl.ACTIVE_COMPONENT:
@@ -239,6 +273,9 @@ export class DesignImpl extends BasicEObject implements Design {
         return;
       case DesignImpl.ROLLBACK:
         this._rollback = -1;
+        return;
+      case DesignImpl.VISIBLE:
+        this._visible = true;
         return;
       case DesignImpl.COMPONENTS:
         if (this._components) this._components.clear();

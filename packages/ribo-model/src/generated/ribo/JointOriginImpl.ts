@@ -8,6 +8,7 @@
 import { BasicEObject } from '@emfts/core';
 import type { EClass, EStructuralFeature } from '@emfts/core';
 import type { Component } from './Component.js';
+import { OriginKind } from './OriginKind.js';
 import type { JointOrigin } from './JointOrigin.js';
 import { RiboPackage } from './RiboPackage.js';
 
@@ -18,18 +19,20 @@ import { RiboPackage } from './RiboPackage.js';
 export class JointOriginImpl extends BasicEObject implements JointOrigin {
   // Feature ID Constants (eLiterals)
   static readonly COMPONENT: number = 0;
-  static readonly ORIGIN_X: number = 1;
-  static readonly ORIGIN_Y: number = 2;
-  static readonly ORIGIN_Z: number = 3;
-  static readonly Z_X: number = 4;
-  static readonly Z_Y: number = 5;
-  static readonly Z_Z: number = 6;
-  static readonly X_X: number = 7;
-  static readonly X_Y: number = 8;
-  static readonly X_Z: number = 9;
+  static readonly KIND: number = 1;
+  static readonly ORIGIN_X: number = 2;
+  static readonly ORIGIN_Y: number = 3;
+  static readonly ORIGIN_Z: number = 4;
+  static readonly Z_X: number = 5;
+  static readonly Z_Y: number = 6;
+  static readonly Z_Z: number = 7;
+  static readonly X_X: number = 8;
+  static readonly X_Y: number = 9;
+  static readonly X_Z: number = 10;
 
   // Private fields
   private _component?: Component;
+  private _kind: OriginKind = OriginKind.Face;
   private _originX: number = 0;
   private _originY: number = 0;
   private _originZ: number = 0;
@@ -67,6 +70,30 @@ export class JointOriginImpl extends BasicEObject implements JointOrigin {
         isTouch: () => false,
         isReset: () => false,
         getFeatureID: () => JointOriginImpl.COMPONENT,
+        merge: () => false
+      });
+    }
+  }
+
+  get kind(): OriginKind {
+    return this._kind!;
+  }
+
+  set kind(value: OriginKind) {
+    const oldValue = this._kind;
+    this._kind = value;
+    if (this.eDeliver()) {
+      this.eNotify({
+        getNotifier: () => this,
+        getEventType: () => 1, // SET
+        getFeature: () => this.eClass().getEStructuralFeature(JointOriginImpl.KIND),
+        getOldValue: () => oldValue,
+        getNewValue: () => value,
+        getPosition: () => -1,
+        wasSet: () => true,
+        isTouch: () => false,
+        isReset: () => false,
+        getFeatureID: () => JointOriginImpl.KIND,
         merge: () => false
       });
     }
@@ -298,6 +325,8 @@ export class JointOriginImpl extends BasicEObject implements JointOrigin {
     switch (featureID) {
       case JointOriginImpl.COMPONENT:
         return this.component;
+      case JointOriginImpl.KIND:
+        return this.kind;
       case JointOriginImpl.ORIGIN_X:
         return this.originX;
       case JointOriginImpl.ORIGIN_Y:
@@ -329,6 +358,10 @@ export class JointOriginImpl extends BasicEObject implements JointOrigin {
     switch (featureID) {
       case JointOriginImpl.COMPONENT:
         this.component = newValue as Component;
+        super.eSet(feature, newValue);
+        break;
+      case JointOriginImpl.KIND:
+        this.kind = newValue as OriginKind;
         super.eSet(feature, newValue);
         break;
       case JointOriginImpl.ORIGIN_X:
@@ -380,6 +413,8 @@ export class JointOriginImpl extends BasicEObject implements JointOrigin {
     switch (featureID) {
       case JointOriginImpl.COMPONENT:
         return this._component !== undefined;
+      case JointOriginImpl.KIND:
+        return this._kind !== OriginKind.Face;
       case JointOriginImpl.ORIGIN_X:
         return this._originX !== 0;
       case JointOriginImpl.ORIGIN_Y:
@@ -411,6 +446,9 @@ export class JointOriginImpl extends BasicEObject implements JointOrigin {
     switch (featureID) {
       case JointOriginImpl.COMPONENT:
         this._component = undefined;
+        return;
+      case JointOriginImpl.KIND:
+        this._kind = OriginKind.Face;
         return;
       case JointOriginImpl.ORIGIN_X:
         this._originX = 0;

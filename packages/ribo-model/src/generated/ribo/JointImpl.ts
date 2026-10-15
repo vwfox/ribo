@@ -25,6 +25,11 @@ export class JointImpl extends FeatureImpl implements Joint {
   static readonly OFFSET: number = 6;
   static readonly ANGLE: number = 7;
   static readonly FLIP: number = 8;
+  static readonly SHIFT_X: number = 9;
+  static readonly SHIFT_Y: number = 10;
+  static readonly TILT_X: number = 11;
+  static readonly TILT_Y: number = 12;
+  static readonly ALIGN_ONLY: number = 13;
 
   // Private fields
   private _kind: JointKind = JointKind.Rigid;
@@ -33,6 +38,11 @@ export class JointImpl extends FeatureImpl implements Joint {
   private _offset: string = "0";
   private _angle: string = "0";
   private _flip: boolean = false;
+  private _shiftX: string = "0";
+  private _shiftY: string = "0";
+  private _tiltX: string = "0";
+  private _tiltY: string = "0";
+  private _alignOnly: boolean = false;
 
   /**
    * Returns the EClass of this object
@@ -186,6 +196,126 @@ export class JointImpl extends FeatureImpl implements Joint {
     }
   }
 
+  get shiftX(): string {
+    return this._shiftX!;
+  }
+
+  set shiftX(value: string) {
+    const oldValue = this._shiftX;
+    this._shiftX = value;
+    if (this.eDeliver()) {
+      this.eNotify({
+        getNotifier: () => this,
+        getEventType: () => 1, // SET
+        getFeature: () => this.eClass().getEStructuralFeature(JointImpl.SHIFT_X),
+        getOldValue: () => oldValue,
+        getNewValue: () => value,
+        getPosition: () => -1,
+        wasSet: () => true,
+        isTouch: () => false,
+        isReset: () => false,
+        getFeatureID: () => JointImpl.SHIFT_X,
+        merge: () => false
+      });
+    }
+  }
+
+  get shiftY(): string {
+    return this._shiftY!;
+  }
+
+  set shiftY(value: string) {
+    const oldValue = this._shiftY;
+    this._shiftY = value;
+    if (this.eDeliver()) {
+      this.eNotify({
+        getNotifier: () => this,
+        getEventType: () => 1, // SET
+        getFeature: () => this.eClass().getEStructuralFeature(JointImpl.SHIFT_Y),
+        getOldValue: () => oldValue,
+        getNewValue: () => value,
+        getPosition: () => -1,
+        wasSet: () => true,
+        isTouch: () => false,
+        isReset: () => false,
+        getFeatureID: () => JointImpl.SHIFT_Y,
+        merge: () => false
+      });
+    }
+  }
+
+  get tiltX(): string {
+    return this._tiltX!;
+  }
+
+  set tiltX(value: string) {
+    const oldValue = this._tiltX;
+    this._tiltX = value;
+    if (this.eDeliver()) {
+      this.eNotify({
+        getNotifier: () => this,
+        getEventType: () => 1, // SET
+        getFeature: () => this.eClass().getEStructuralFeature(JointImpl.TILT_X),
+        getOldValue: () => oldValue,
+        getNewValue: () => value,
+        getPosition: () => -1,
+        wasSet: () => true,
+        isTouch: () => false,
+        isReset: () => false,
+        getFeatureID: () => JointImpl.TILT_X,
+        merge: () => false
+      });
+    }
+  }
+
+  get tiltY(): string {
+    return this._tiltY!;
+  }
+
+  set tiltY(value: string) {
+    const oldValue = this._tiltY;
+    this._tiltY = value;
+    if (this.eDeliver()) {
+      this.eNotify({
+        getNotifier: () => this,
+        getEventType: () => 1, // SET
+        getFeature: () => this.eClass().getEStructuralFeature(JointImpl.TILT_Y),
+        getOldValue: () => oldValue,
+        getNewValue: () => value,
+        getPosition: () => -1,
+        wasSet: () => true,
+        isTouch: () => false,
+        isReset: () => false,
+        getFeatureID: () => JointImpl.TILT_Y,
+        merge: () => false
+      });
+    }
+  }
+
+  get alignOnly(): boolean {
+    return this._alignOnly!;
+  }
+
+  set alignOnly(value: boolean) {
+    const oldValue = this._alignOnly;
+    this._alignOnly = value;
+    if (this.eDeliver()) {
+      this.eNotify({
+        getNotifier: () => this,
+        getEventType: () => 1, // SET
+        getFeature: () => this.eClass().getEStructuralFeature(JointImpl.ALIGN_ONLY),
+        getOldValue: () => oldValue,
+        getNewValue: () => value,
+        getPosition: () => -1,
+        wasSet: () => true,
+        isTouch: () => false,
+        isReset: () => false,
+        getFeatureID: () => JointImpl.ALIGN_ONLY,
+        merge: () => false
+      });
+    }
+  }
+
   // Reflective API
 
   /**
@@ -206,6 +336,16 @@ export class JointImpl extends FeatureImpl implements Joint {
         return this.angle;
       case JointImpl.FLIP:
         return this.flip;
+      case JointImpl.SHIFT_X:
+        return this.shiftX;
+      case JointImpl.SHIFT_Y:
+        return this.shiftY;
+      case JointImpl.TILT_X:
+        return this.tiltX;
+      case JointImpl.TILT_Y:
+        return this.tiltY;
+      case JointImpl.ALIGN_ONLY:
+        return this.alignOnly;
       default:
         return super.eGet(feature);
     }
@@ -241,6 +381,26 @@ export class JointImpl extends FeatureImpl implements Joint {
         this.flip = newValue as boolean;
         super.eSet(feature, newValue);
         break;
+      case JointImpl.SHIFT_X:
+        this.shiftX = newValue as string;
+        super.eSet(feature, newValue);
+        break;
+      case JointImpl.SHIFT_Y:
+        this.shiftY = newValue as string;
+        super.eSet(feature, newValue);
+        break;
+      case JointImpl.TILT_X:
+        this.tiltX = newValue as string;
+        super.eSet(feature, newValue);
+        break;
+      case JointImpl.TILT_Y:
+        this.tiltY = newValue as string;
+        super.eSet(feature, newValue);
+        break;
+      case JointImpl.ALIGN_ONLY:
+        this.alignOnly = newValue as boolean;
+        super.eSet(feature, newValue);
+        break;
       default:
         super.eSet(feature, newValue);
     }
@@ -264,6 +424,16 @@ export class JointImpl extends FeatureImpl implements Joint {
         return this._angle !== "0";
       case JointImpl.FLIP:
         return this._flip !== false;
+      case JointImpl.SHIFT_X:
+        return this._shiftX !== "0";
+      case JointImpl.SHIFT_Y:
+        return this._shiftY !== "0";
+      case JointImpl.TILT_X:
+        return this._tiltX !== "0";
+      case JointImpl.TILT_Y:
+        return this._tiltY !== "0";
+      case JointImpl.ALIGN_ONLY:
+        return this._alignOnly !== false;
       default:
         return super.eIsSet(feature);
     }
@@ -292,6 +462,21 @@ export class JointImpl extends FeatureImpl implements Joint {
         return;
       case JointImpl.FLIP:
         this._flip = false;
+        return;
+      case JointImpl.SHIFT_X:
+        this._shiftX = "0";
+        return;
+      case JointImpl.SHIFT_Y:
+        this._shiftY = "0";
+        return;
+      case JointImpl.TILT_X:
+        this._tiltX = "0";
+        return;
+      case JointImpl.TILT_Y:
+        this._tiltY = "0";
+        return;
+      case JointImpl.ALIGN_ONLY:
+        this._alignOnly = false;
         return;
       default:
         super.eUnset(feature);

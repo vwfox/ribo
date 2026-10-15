@@ -15,6 +15,7 @@ export interface Component extends EObject {
   name?: string;
   grounded: boolean;
   visible: boolean;
+  rollback: number;
   positionX: string;
   positionY: string;
   positionZ: string;

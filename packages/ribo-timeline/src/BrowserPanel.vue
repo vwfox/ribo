@@ -39,7 +39,7 @@ const model = computed(() => {
     return {
       index,
       component: document.componentAt(index),
-      name: index === 0 ? design.name || 'Unbenannt' : (document.componentAt(index)?.name ?? `Bauteil ${index}`),
+      name: index === 0 ? 'Hauptbauteil' : (document.componentAt(index)?.name ?? `Bauteil ${index}`),
       planes: own.filter(isConstructionPlane),
       sketches: own.filter(isSketch),
       features: own.filter((f) => !isSketch(f) && !isConstructionPlane(f)),
@@ -49,7 +49,6 @@ const model = computed(() => {
   return {
     root: node(0),
     components: design.components.toArray().map((_, i) => node(i + 1)),
-    joints: features.filter(isJoint),
     parameters: design.parameters.toArray(),
     values: document.parameterValues(),
     active: document.componentIndexOf(design.activeComponent),
@@ -71,9 +70,12 @@ function volumeText(volume: number) {
   return volume >= 1000 ? `${(volume / 1000).toFixed(2)} cm³` : `${volume.toFixed(0)} mm³`
 }
 
-function toggleVisible(component: Component) {
+const isVisible = (node: Node) => (node.component ? node.component.visible : props.document.design.value.visible) !== false
+
+function toggleVisible(node: Node) {
+  const target = node.component ?? props.document.design.value
   props.document.history.record('Sichtbarkeit', () => {
-    component.visible = !component.visible
+    target.visible = !isVisible(node)
   })
 }
 
@@ -87,6 +89,8 @@ const groups = (node: Node) =>
 
 <template>
   <div class="ribo-tree" :data-revision="document.revision.value">
+    <div class="ribo-tree-design" :class="{ selected: isSelected(document.design.value) }" @click="select(document.design.value)"><i class="pi pi-file" /> {{ document.design.value.name || 'Unbenannt' }}</div>
+
     <!-- Parameters belong to the whole design -->
     <div class="ribo-tree-head" @click="toggle('parameters')">
       <i :class="closed.has('parameters') ? 'pi pi-chevron-right' : 'pi pi-chevron-down'" />
@@ -109,10 +113,18 @@ const groups = (node: Node) =>
 
     <!-- The design itself, then its components -->
     <template v-for="node in [model.root, ...model.components]" :key="node.index">
-      <div class="ribo-tree-component" :class="{ active: model.active === node.index, selected: isSelected(node.component) }">
+      <div
+        class="ribo-tree-component"
+        :class="{ active: model.active === node.index, selected: node.component ? isSelected(node.component) : !document.selection.value }"
+      >
         <i class="pi caret" :class="closed.has(`c${node.index}`) ? 'pi-chevron-right' : 'pi-chevron-down'" @click="toggle(`c${node.index}`)" />
-        <i :class="node.index === 0 ? 'pi pi-box' : 'pi pi-th-large'" />
-        <span class="name" @click="node.component ? select(node.component) : document.select(undefined)">{{ node.name }}</span>
+        <i class="pi pi-th-large" />
+        <span
+          class="name"
+          :title="node.index === 0 ? 'Das Design selbst: alles, was nicht in einem eigenen Bauteil liegt' : ''"
+          @click="node.component ? select(node.component) : document.select(undefined)"
+          >{{ node.name }}</span
+        >
         <Button
           v-tooltip="model.active === node.index ? 'Aktives Bauteil – neue Features landen hier' : 'Aktivieren'"
           :icon="model.active === node.index ? 'pi pi-circle-fill' : 'pi pi-circle'"
@@ -122,13 +134,12 @@ const groups = (node: Node) =>
           @click="document.activate(node.component)"
         />
         <Button
-          v-if="node.component"
-          v-tooltip="node.component.visible ? 'Ausblenden' : 'Einblenden'"
-          :icon="node.component.visible ? 'pi pi-eye' : 'pi pi-eye-slash'"
+          v-tooltip="isVisible(node) ? 'Ausblenden' : 'Einblenden'"
+          :icon="isVisible(node) ? 'pi pi-eye' : 'pi pi-eye-slash'"
           size="small"
           text
           rounded
-          @click="toggleVisible(node.component)"
+          @click="toggleVisible(node)"
         />
       </div>
       <div v-if="!closed.has(`c${node.index}`)" class="ribo-tree-children">
@@ -177,27 +188,17 @@ const groups = (node: Node) =>
       </div>
     </template>
 
-    <template v-if="model.joints.length">
-      <div class="ribo-tree-head" @click="toggle('joints')">
-        <i :class="closed.has('joints') ? 'pi pi-chevron-right' : 'pi pi-chevron-down'" />
-        <span>Gelenke</span>
-        <small>{{ model.joints.length }}</small>
-      </div>
-      <ul v-if="!closed.has('joints')">
-        <li
-          v-for="(joint, i) in model.joints"
-          :key="i"
-          :class="{ selected: isSelected(joint), suppressed: joint.suppressed, broken: broken(joint) }"
-          @click="select(joint)"
-        >
-          <i :class="iconOf(joint)" /> <span class="name">{{ joint.name }}</span>
-        </li>
-      </ul>
-    </template>
   </div>
 </template>
 
 <style scoped>
+.ribo-tree-design {
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 0.2rem 0 0.35rem;
+  cursor: pointer;
+}
+
 .ribo-tree-component {
   display: flex;
   align-items: center;
@@ -227,6 +228,7 @@ const groups = (node: Node) =>
   color: var(--p-primary-color);
 }
 
+.ribo-tree-design.selected,
 .ribo-tree-component.selected {
   background: var(--p-highlight-background);
 }

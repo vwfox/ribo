@@ -96,10 +96,10 @@ export interface DocumentService {
   select(object: EObject | undefined): void
 
   newDesign(): void
-  /** Replaces the design with one read from emfts JSON */
-  load(json: string): void
-  /** The design as emfts JSON */
-  save(): string
+  /** Replaces the design with one read from XMI or emfts JSON (told apart by content) */
+  load(text: string): void
+  /** The design as emfts JSON (default, used for the autosave) or XMI */
+  save(format?: 'json' | 'xmi'): string
 
   /** Value of an expression in the scope of the design's parameters (mm or degrees) */
   evaluate(expression: string): number
@@ -129,8 +129,11 @@ export interface DocumentService {
 
   /** Adds the region at a sketch point to the feature's profiles, or removes it when already picked */
   toggleProfile(feature: ProfileFeature, point: Vec2): void
-  /** Moves the timeline marker: only features before index are built; -1 builds all */
-  setRollback(index: number): void
+  /**
+   * Moves a component's timeline marker (without one: the design's): its
+   * features from index on are not built; -1 builds all
+   */
+  setRollback(index: number, component?: ModelComponent): void
 
   addFillet(): EdgeFeature
   addChamfer(): EdgeFeature
@@ -149,6 +152,10 @@ export interface DocumentService {
 
   /** Placement of each component, by component index (0: the design itself) */
   readonly placements: ShallowRef<Matrix[]>
+  /** Degrees of freedom alignments leave a component, by component index; undefined where no alignment places it */
+  readonly freedom: ShallowRef<(number | undefined)[]>
+  /** Component index of the side a relation moves: its second reference, unless only the first can move */
+  movedBy(joint: Joint): number
   /** A new component, made the active one */
   addComponent(): ModelComponent
   /** New features go into the active component; undefined is the design itself */
@@ -157,8 +164,14 @@ export interface DocumentService {
   componentIndexOf(object: ModelComponent | Feature | undefined): number
   componentAt(index: number): ModelComponent | undefined
   addJoint(): Joint
+  /** A one-off alignment: pick two origins, the component moves there, no joint stays */
+  addAlignment(): Joint
   /** Sets one of a joint's origins: a point with z and x axes in the coordinates of that component */
-  setJointOrigin(joint: Joint, which: 'first' | 'second', component: number, origin: Vec3, z: Vec3, x: Vec3): void
+  setJointOrigin(joint: Joint, which: 'first' | 'second', component: number, origin: Vec3, z: Vec3, x: Vec3, kind?: 'Face' | 'CircularEdge' | 'Edge'): void
+  /** Bakes a joint's current placement into its moving component and removes the joint */
+  applyAlignment(joint: Joint): void
+  /** Swaps a joint's origins: the other component moves */
+  swapJointOrigins(joint: Joint): void
 }
 
 export const DOCUMENT = serviceId<DocumentService>('ribo.document')
@@ -202,6 +215,10 @@ export interface ViewportService {
   setBed(size: Vec3): void
   /** Coloured triangles over the bodies, e.g. overhangs; replaces the layer with the same id, empty positions remove it */
   setAnalysisLayer(layer: AnalysisLayer): void
+  /** The component the move gizmo sits on, if any */
+  readonly moving: ShallowRef<ModelComponent | undefined>
+  /** Shows the move gizmo on a component (drag to move or turn it), or ends moving with undefined */
+  moveComponent(component: ModelComponent | undefined): void
 }
 
 export interface AnalysisLayer {

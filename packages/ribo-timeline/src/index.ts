@@ -9,6 +9,7 @@ import { ACTIONS, DOCUMENT, PANELS, SKETCHER, VIEWPORT } from 'ribo-contracts'
 import { isComponent, isFeature, isParameter, isSketch, type Sketch } from 'ribo-model'
 import BrowserPanel from './BrowserPanel.vue'
 import TimelinePanel from './TimelinePanel.vue'
+import RelationsPanel from './RelationsPanel.vue'
 
 const cleanups: (() => void)[] = []
 
@@ -20,9 +21,19 @@ export async function activate(context: ModuleContext): Promise<void> {
 
   const panels = context.services.getRequired(PANELS)
   const browser = markRaw(defineComponent({ name: 'RiboBrowserPanel', setup: () => () => h(BrowserPanel, { document, editSketch }) }))
+  const relations = markRaw(defineComponent({ name: 'RiboRelationsPanel', setup: () => () => h(RelationsPanel, { document }) }))
   const timeline = markRaw(defineComponent({ name: 'RiboTimelinePanel', setup: () => () => h(TimelinePanel, { document, editSketch }) }))
   cleanups.push(
     panels.register({ id: 'browser', title: 'Browser', icon: 'pi pi-sitemap', location: 'left', component: browser }),
+    panels.register({
+      id: 'relations',
+      title: 'Beziehungen',
+      icon: 'pi pi-link',
+      location: 'left',
+      component: relations,
+      order: 10,
+      visible: () => viewport.mode.value === 'model',
+    }),
     panels.register({ id: 'timeline', title: 'Zeitleiste', icon: 'pi pi-history', location: 'bottom', component: timeline }),
   )
 
@@ -74,6 +85,31 @@ export async function activate(context: ModuleContext): Promise<void> {
       visible: inModel,
       enabled: () => document.design.value.components.size() > 0,
       run: () => void document.addJoint(),
+    }),
+    actions.register({
+      id: 'assemble.align',
+      label: 'Ausrichten (Bezug an Bezug eines anderen Bauteils)',
+      icon: 'pi pi-arrows-h',
+      group: 'assemble',
+      order: 302,
+      visible: inModel,
+      enabled: () => document.design.value.components.size() > 0,
+      run: () => void document.addAlignment(),
+    }),
+    actions.register({
+      id: 'assemble.move',
+      label: 'Bauteil bewegen',
+      icon: 'pi pi-arrows-alt',
+      group: 'assemble',
+      order: 303,
+      shortcut: 'M',
+      visible: inModel,
+      // The selected component, else the active one; the design itself does not move
+      enabled: () => isComponent(document.selection.value) || document.design.value.activeComponent !== undefined,
+      run: () => {
+        const selected = document.selection.value
+        viewport.moveComponent(isComponent(selected) ? selected : (document.design.value.activeComponent ?? undefined))
+      },
     }),
     actions.register({
       id: 'create.plane',

@@ -78,3 +78,27 @@ export function applyDirection(m: Matrix, [x, y, z]: Vec3): Vec3 {
 export function isIdentity(m: Matrix): boolean {
   return m.every((v, i) => Math.abs(v - IDENTITY[i]!) < 1e-12)
 }
+
+/**
+ * Position and rotation (degrees about X, then Y, then Z) of a rigid matrix -
+ * the inverse of `placement`.
+ */
+export function decompose(m: Matrix): { position: Vec3; rotation: Vec3 } {
+  // R = Rz(c) · Ry(b) · Rx(a); entry r_ij sits at m[j * 4 + i]
+  const r20 = m[2]!
+  const toDegrees = (radians: number) => (radians * 180) / Math.PI
+  let a: number
+  let b: number
+  let c: number
+  if (Math.abs(r20) < 1 - 1e-9) {
+    b = Math.asin(-r20)
+    a = Math.atan2(m[6]!, m[10]!)
+    c = Math.atan2(m[1]!, m[0]!)
+  } else {
+    // Gimbal lock: X and Z turn about the same axis; put it all in Z
+    b = r20 < 0 ? Math.PI / 2 : -Math.PI / 2
+    a = 0
+    c = Math.atan2(-m[4]!, m[5]!)
+  }
+  return { position: [m[12]!, m[13]!, m[14]!], rotation: [toDegrees(a), toDegrees(b), toDegrees(c)] }
+}

@@ -142,8 +142,6 @@ export interface CompiledPlan {
 export function compilePlan(design: Design): CompiledPlan {
   const scope = scopeOf(evaluateParameters(design))
   const features = design.features.toArray()
-  const rollback = design.rollback ?? -1
-  const end = rollback >= 0 ? Math.min(rollback, features.length) : features.length
   const planned: (PlanFeature | ModifierFeature | HoleFeature)[] = []
   const problems: FeatureProblem[] = []
   /** Construction planes that made it into the plan */
@@ -151,8 +149,8 @@ export function compilePlan(design: Design): CompiledPlan {
   /** Sketches that made it into the plan */
   const sketchPlans = new Map<Sketch, Extract<PlanFeature, { kind: 'sketch' }>>()
 
-  features.slice(0, end).forEach((feature, index) => {
-    if (feature.suppressed) return
+  features.forEach((feature, index) => {
+    if (feature.suppressed || isRolledBack(design, feature, index)) return
     const evaluate: Evaluate = (label, source) => {
       try {
         return evaluateExpression(source ?? '', scope)
@@ -268,6 +266,16 @@ export function compilePlan(design: Design): CompiledPlan {
   })
 
   return { plan: { features: planned.map((f) => ({ ...f, component: buildComponent(design, features[f.index]!) })) }, problems }
+}
+
+/**
+ * Each component has its own timeline marker - the design itself (and the
+ * joints) the design's. A feature is rolled back when it lies at or after the
+ * marker of the component it lives in.
+ */
+export function isRolledBack(design: Design, feature: Feature, index: number): boolean {
+  const marker = (feature.component ?? design).rollback ?? -1
+  return marker >= 0 && index >= marker
 }
 
 /** Index of a component in the plan: 0 is the design itself, i + 1 its i-th component */

@@ -12,6 +12,7 @@ import { download, fileStem, pickFile } from './files'
 
 const AUTOSAVE_KEY = 'ribo.autosave'
 const AUTOSAVE_DELAY_MS = 800
+/** Designs are saved as emfts JSON; XMI files open as well */
 const DESIGN_EXTENSION = '.ribo.json'
 
 const cleanups: (() => void)[] = []
@@ -85,7 +86,7 @@ export async function activate(context: ModuleContext): Promise<void> {
       order: 1,
       shortcut: 'Ctrl+O',
       run: async () => {
-        const file = await pickFile(`${DESIGN_EXTENSION},.json`)
+        const file = await pickFile(`${DESIGN_EXTENSION},.json,.ribo.xmi,.xmi`)
         if (!file) return
         try {
           document.load(await file.text())

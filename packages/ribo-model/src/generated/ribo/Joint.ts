@@ -21,5 +21,10 @@ export interface Joint extends Feature {
   offset: string;
   angle: string;
   flip: boolean;
+  shiftX: string;
+  shiftY: string;
+  tiltX: string;
+  tiltY: string;
+  alignOnly: boolean;
 
 }

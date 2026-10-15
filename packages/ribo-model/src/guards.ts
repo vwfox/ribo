@@ -6,6 +6,7 @@
 import type { EClass, EObject } from '@emfts/core'
 import { RiboPackage } from './generated/ribo/RiboPackage.js'
 import type {
+  Design,
   Chamfer,
   Component,
   Joint,
@@ -40,6 +41,7 @@ export function isKindOf(object: Maybe, eClass: EClass): boolean {
 
 const L = () => RiboPackage.Literals
 
+export const isDesign = (o: Maybe): o is Design => isKindOf(o, L().DESIGN)
 export const isFeature = (o: Maybe): o is Feature => isKindOf(o, L().FEATURE)
 export const isSketch = (o: Maybe): o is Sketch => isKindOf(o, L().SKETCH)
 export const isProfileFeature = (o: Maybe): o is ProfileFeature => isKindOf(o, L().PROFILE_FEATURE)

@@ -5,6 +5,7 @@ import {
   NotificationType,
   OPTION_INDENT,
   URI,
+  XMIResource,
   type EObject,
   type Notification,
 } from '@emfts/core'
@@ -60,8 +61,8 @@ import type {
 import { evaluateExpression } from './expression'
 import { History } from './History'
 import { buildComponent, compilePlan, componentIndex, evaluateParameters, scopeOf, sketchCurves, sketchFrame, sketchRegions } from './plan'
-import { solveAssembly } from './kinematics'
-import { IDENTITY, originFrame, regionAt } from 'ribo-geometry'
+import { movedBy, solveAssembly } from './kinematics'
+import { IDENTITY, decompose, originFrame, regionAt } from 'ribo-geometry'
 import type { SketchSolver } from './solver'
 
 const BUILD_DELAY_MS = 120
@@ -105,6 +106,7 @@ export class DesignDocument implements DocumentService {
   readonly inputResult = shallowRef<BuildResult | undefined>()
   /** Placement of each component (0: the design itself) */
   readonly placements = shallowRef<Matrix[]>([IDENTITY])
+  readonly freedom = shallowRef<(number | undefined)[]>([])
 
   private readonly factory = RiboFactory.eINSTANCE
   private readonly adapter: EContentAdapter
@@ -157,24 +159,26 @@ export class DesignDocument implements DocumentService {
     this.setDesign(this.createDesign())
   }
 
-  load(json: string): void {
-    const resource = new JSONResource(URI.createURI('design.ribo.json'))
-    resource.loadFromString(json)
+  load(text: string): void {
+    // XMI starts with its XML declaration or root element; anything else is emfts JSON
+    const xml = text.trimStart().startsWith('<')
+    const resource = xml ? new XMIResource(URI.createURI('design.ribo.xmi')) : new JSONResource(URI.createURI('design.ribo.json'))
+    resource.loadFromString(text)
     const root = resource.getContents().get(0)
     if (!root || root.eClass().getName() !== 'Design') throw new Error('Die Datei enthält kein ribo-Design')
     resource.getContents().clear()
     this.setDesign(root as Design)
   }
 
-  save(): string {
+  save(format: 'json' | 'xmi' = 'json'): string {
     const design = this.design.value
-    const resource = new JSONResource(URI.createURI('design.ribo.json'))
+    const resource = format === 'xmi' ? new XMIResource(URI.createURI('design.ribo.xmi')) : new JSONResource(URI.createURI('design.ribo.json'))
     this.muted = true
     try {
       return this.history.unrecorded(() => {
         resource.getContents().add(design)
         try {
-          return resource.saveToString(new Map([[OPTION_INDENT, 2]]))
+          return format === 'xmi' ? resource.saveToString() : resource.saveToString(new Map([[OPTION_INDENT, 2]]))
         } finally {
           // Detach again so the live root is not owned by a throwaway resource
           resource.getContents().clear()
@@ -307,13 +311,20 @@ export class DesignDocument implements DocumentService {
     })
   }
 
-  setRollback(index: number): void {
+  setRollback(index: number, component?: Component): void {
     const design = this.design.value
+    const owner = component ?? design
     const value = index < 0 || index >= design.features.size() ? -1 : index
-    if (design.rollback === value) return
+    if ((owner.rollback ?? -1) === value) return
     this.history.record('Zeitleiste verschieben', () => {
-      design.rollback = value
+      owner.rollback = value
     })
+  }
+
+  /** The design's and every component's timeline marker */
+  private markerOwners(): { rollback: number }[] {
+    const design = this.design.value
+    return [design, ...design.components.toArray()]
   }
 
   // --------------------------------------------------------- modifications
@@ -367,15 +378,76 @@ export class DesignDocument implements DocumentService {
     return joint
   }
 
-  setJointOrigin(joint: Joint, which: 'first' | 'second', component: number, origin: Vec3, z: Vec3, x: Vec3): void {
+  setJointOrigin(joint: Joint, which: 'first' | 'second', component: number, origin: Vec3, z: Vec3, x: Vec3, kind: 'Face' | 'CircularEdge' | 'Edge' = 'Face'): void {
     const value: JointOrigin = this.factory.createJointOrigin()
     value.component = this.componentAt(component) as Component
+    value.kind = kind
     ;[value.originX, value.originY, value.originZ] = origin
     ;[value.zX, value.zY, value.zZ] = z
     ;[value.xX, value.xY, value.xZ] = x
-    this.history.record('Gelenkursprung', () => {
+    this.history.record(joint.alignOnly ? 'Ausrichten' : 'Gelenkursprung', () => {
       joint[which] = value
+      if (joint.alignOnly && joint.first && joint.second) this.bakeAlignment(joint)
     })
+  }
+
+  movedBy(joint: Joint): number {
+    return movedBy(this.design.value, joint)
+  }
+
+  swapJointOrigins(joint: Joint): void {
+    this.history.record('Bezüge tauschen', () => {
+      const [first, second] = [joint.first, joint.second]
+      joint.first = undefined as never
+      joint.second = undefined as never
+      joint.first = second as JointOrigin
+      joint.second = first as JointOrigin
+    })
+  }
+
+  /** Bakes a joint into its moving component's position and removes it */
+  applyAlignment(joint: Joint): void {
+    if (joint.alignOnly) {
+      this.bakeAlignment(joint)
+      return
+    }
+    this.history.record('In Lage übernehmen', () => this.bakeAlignment(joint))
+  }
+
+  /** The joint's placement becomes the component's own position; the joint goes */
+  private bakeAlignment(joint: Joint): void {
+    const design = this.design.value
+    const evaluate = (_label: string, source: string | undefined) => this.evaluate(source ?? '0')
+    const moving = this.componentAt(movedBy(design, joint))
+    if (!moving) {
+      // Both origins on the design itself: nothing can move
+      this.removeNow(joint)
+      return
+    }
+    const placed = solveAssembly(design, evaluate).placements[componentIndex(design, moving)]
+    if (placed) {
+      const { position, rotation } = decompose(placed)
+      const round = (v: number) => String(Math.round(v * 1e4) / 1e4)
+      ;[moving.positionX, moving.positionY, moving.positionZ] = position.map(round) as [string, string, string]
+      ;[moving.rotationX, moving.rotationY, moving.rotationZ] = rotation.map(round) as [string, string, string]
+    }
+    this.removeNow(joint)
+    if (this.selection.value === joint) this.selection.value = moving
+  }
+
+  /** An alignment: a rigid joint that stays in the timeline and can be edited */
+  addAlignment(): Joint {
+    const joint = this.factory.createJoint()
+    joint.name = this.nextFeatureName('Ausrichtung')
+    joint.kind = 'Rigid'
+    this.history.record('Ausrichten', () => {
+      const active = this.design.value.activeComponent
+      this.design.value.activeComponent = undefined as never
+      this.insertFeature(joint)
+      this.design.value.activeComponent = active as Component
+    })
+    this.select(joint)
+    return joint
   }
 
   addConstructionPlane(pick: PlanePick): ConstructionPlane {
@@ -511,10 +583,11 @@ export class DesignDocument implements DocumentService {
     const design = this.design.value
     // New features build in the active component
     if (!feature.component && design.activeComponent) feature.component = design.activeComponent
-    const rollback = design.rollback ?? -1
-    if (rollback >= 0) {
-      design.features.addAt(rollback, feature)
-      design.rollback = rollback + 1
+    const marker = (feature.component ?? design).rollback ?? -1
+    if (marker >= 0) {
+      design.features.addAt(marker, feature)
+      // Everything from the insertion on moved one place: so do the markers there, this one included
+      for (const owner of this.markerOwners()) if ((owner.rollback ?? -1) >= marker) owner.rollback = owner.rollback + 1
     } else {
       design.features.add(feature)
     }
@@ -556,9 +629,10 @@ export class DesignDocument implements DocumentService {
       }
       const index = design.features.indexOf(object)
       design.features.remove(object)
-      const rollback = design.rollback ?? -1
-      if (rollback > index) design.rollback = rollback - 1
-      if ((design.rollback ?? -1) >= design.features.size()) design.rollback = -1
+      for (const owner of this.markerOwners()) {
+        if ((owner.rollback ?? -1) > index) owner.rollback = owner.rollback - 1
+        if ((owner.rollback ?? -1) >= design.features.size()) owner.rollback = -1
+      }
       return
     }
     if (isParameter(object)) {
@@ -669,16 +743,15 @@ export class DesignDocument implements DocumentService {
 
     const compiled = compilePlan(design)
     this.plan.value = compiled.plan
-    const rollback = design.rollback ?? -1
-    const end = rollback >= 0 ? rollback : design.features.size()
     const assembly = solveAssembly(design, (label, source) => {
       try {
         return this.evaluate(source ?? '0')
       } catch (error) {
         throw new Error(`${label}: ${(error as Error).message}`)
       }
-    }, end)
+    })
     this.placements.value = assembly.placements
+    this.freedom.value = assembly.freedom
     this.assemblyProblems = assembly.problems
     this.compileProblems = compiled.problems
     this.problems.value = this.mergeProblems(this.result.value?.problems ?? [])

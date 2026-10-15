@@ -11,6 +11,7 @@ import {
   SketchAxis,
   SketchPlane,
   isComponent,
+  isDesign,
   isConstructionPlane,
   isEdgeFeature,
   isJoint,
@@ -121,33 +122,119 @@ const TILT_AXES = [
 ]
 
 const JOINT_KINDS = [
-  { label: 'Starr', value: 'Rigid' },
+  { label: 'Ausrichtung', value: 'Rigid' },
   { label: 'Scharnier', value: 'Revolute' },
   { label: 'Schiebe', value: 'Slider' },
+  { label: 'Zylinder', value: 'Cylindrical' },
+  { label: 'Planar', value: 'Planar' },
+  { label: 'Kugel', value: 'Ball' },
 ]
 
-/** Value of a joint's motion as a number, for the slider; expressions that are no plain number show 0 */
-const jointValue = computed(() => {
+const FACINGS = [
+  { label: 'Aufeinander', value: false },
+  { label: 'Bündig', value: true },
+]
+
+/** What an alignment of two reference kinds holds; the rest stays free for further alignments or moving by hand */
+const ALIGNMENT_HINTS: Record<string, string> = {
+  'Face-Face': 'Die Flächen liegen in einer Ebene. Verschieben in der Ebene und Drehen bleiben frei – z. B. mit einer Kante an Kante festlegen.',
+  'Edge-Edge': 'Die Kanten liegen auf einer Linie. Entlang der Kante und um sie bleibt das Bauteil frei.',
+  'CircularEdge-CircularEdge': 'Die Achsen fallen zusammen. Drehen um die Achse bleibt frei.',
+  'Edge-Face': 'Die Kante liegt in der Ebene der Fläche.',
+  'CircularEdge-Face': 'Der Kreis liegt auf der Fläche, seine Achse steht senkrecht darauf.',
+  'CircularEdge-Edge': 'Der Kreismittelpunkt liegt auf der Linie der Kante.',
+}
+
+const EDGE_SENSES = [
+  { label: 'Gleich gerichtet', value: false },
+  { label: 'Gegenläufig', value: true },
+]
+
+type JointValue = 'angle' | 'offset' | 'shiftX' | 'shiftY' | 'tiltX' | 'tiltY'
+
+interface JointControl {
+  key: JointValue
+  label: string
+  unit: string
+  /** Moved with a slider; the others are fixed offsets */
+  moves: boolean
+  range: [number, number]
+}
+
+const ANGLE: [number, number] = [-180, 180]
+const TRAVEL: [number, number] = [-100, 100]
+
+/** Which values each joint kind offers, and which of them it moves */
+const JOINT_CONTROLS: Record<string, JointControl[]> = {
+  Rigid: [{ key: 'offset', label: 'Abstand', unit: 'mm', moves: false, range: TRAVEL }],
+  Revolute: [
+    { key: 'angle', label: 'Winkel', unit: '°', moves: true, range: ANGLE },
+    { key: 'offset', label: 'Versatz entlang der Achse', unit: 'mm', moves: false, range: TRAVEL },
+  ],
+  Slider: [
+    { key: 'offset', label: 'Weg', unit: 'mm', moves: true, range: TRAVEL },
+    { key: 'angle', label: 'Drehung um die Achse', unit: '°', moves: false, range: ANGLE },
+  ],
+  Cylindrical: [
+    { key: 'angle', label: 'Winkel', unit: '°', moves: true, range: ANGLE },
+    { key: 'offset', label: 'Weg entlang der Achse', unit: 'mm', moves: true, range: TRAVEL },
+  ],
+  Planar: [
+    { key: 'shiftX', label: 'Verschiebung X', unit: 'mm', moves: true, range: TRAVEL },
+    { key: 'shiftY', label: 'Verschiebung Y', unit: 'mm', moves: true, range: TRAVEL },
+    { key: 'angle', label: 'Drehung', unit: '°', moves: true, range: ANGLE },
+    { key: 'offset', label: 'Abstand der Flächen', unit: 'mm', moves: false, range: TRAVEL },
+  ],
+  Ball: [
+    { key: 'tiltX', label: 'Neigung X', unit: '°', moves: true, range: [-90, 90] },
+    { key: 'tiltY', label: 'Neigung Y', unit: '°', moves: true, range: [-90, 90] },
+    { key: 'angle', label: 'Drehung', unit: '°', moves: true, range: ANGLE },
+  ],
+}
+
+const jointControls = computed(() => {
+  const joint = selected.value
+  if (!isJoint(joint)) return []
+  // Two edges on one line have no distance
+  if (alignmentKinds.value === 'Edge-Edge' || alignmentKinds.value === 'CircularEdge-Edge') return []
+  return JOINT_CONTROLS[joint.kind ?? 'Rigid'] ?? []
+})
+
+/** The pair of reference kinds of a selected alignment, sorted, e.g. 'Edge-Face'; undefined for joints */
+const alignmentKinds = computed(() => {
+  void props.document.revision.value
+  const joint = selected.value
+  if (!isJoint(joint) || (joint.kind ?? 'Rigid') !== 'Rigid') return undefined
+  return [joint.first?.kind ?? 'Face', joint.second?.kind ?? 'Face'].sort().join('-')
+})
+
+/** What the facing choice means for the selected relation, or undefined when it has none */
+const facings = computed(() => {
+  const kinds = alignmentKinds.value
+  if (kinds === undefined || kinds === 'Face-Face') return FACINGS
+  if (kinds === 'Edge-Edge') return EDGE_SENSES
+  return undefined
+})
+
+/** A joint value as a number, for its slider; expressions that are no plain number show 0 */
+function jointNumber(key: JointValue): number {
   void props.document.revision.value
   const joint = selected.value
   if (!isJoint(joint)) return 0
-  const source = joint.kind === 'Slider' ? joint.offset : joint.angle
-  const value = Number(source)
+  const value = Number(joint[key])
   return Number.isFinite(value) ? value : 0
-})
+}
 
 let sliding = false
-/** Moving the joint by the slider is one undo step per gesture */
-function slide(value: number | number[]) {
+/** Moving the joint by a slider is one undo step per gesture */
+function slide(key: JointValue, value: number | number[]) {
   const joint = selected.value
   if (!isJoint(joint)) return
   if (!sliding) {
     sliding = true
     props.document.history.begin('Gelenk bewegen')
   }
-  const v = String(Math.round((Array.isArray(value) ? value[0]! : value) * 10) / 10)
-  if (joint.kind === 'Slider') joint.offset = v
-  else joint.angle = v
+  joint[key] = String(Math.round((Array.isArray(value) ? value[0]! : value) * 10) / 10)
 }
 
 function slideEnd() {
@@ -156,16 +243,19 @@ function slideEnd() {
   props.document.history.end()
 }
 
-function resetOrigins() {
+/** Clears one origin: the next pick in the viewport sets it again */
+function repickOrigin(which: 'first' | 'second') {
   const joint = selected.value
   if (!isJoint(joint)) return
-  props.document.history.record('Gelenkursprünge neu', () => {
-    joint.first = undefined as never
-    joint.second = undefined as never
+  props.document.history.record('Bezug neu wählen', () => {
+    joint[which] = undefined as never
   })
 }
 
-const originName = (origin: { component?: { name?: string } } | undefined) => (origin ? origin.component?.name ?? design.value.name ?? 'Hauptbauteil' : '–')
+const ORIGIN_KINDS: Record<string, string> = { Face: 'Fläche', CircularEdge: 'Kreiskante', Edge: 'Kante' }
+
+const originName = (origin: { component?: { name?: string }; kind?: string } | undefined) =>
+  origin ? `${ORIGIN_KINDS[origin.kind ?? 'Face'] ?? 'Fläche'} an ${origin.component?.name ?? 'Hauptbauteil'}` : 'noch nicht gewählt'
 
 const HOLE_TYPES = [
   { label: 'Einfach', value: HoleType.Simple },
@@ -277,13 +367,28 @@ function setAxis(value: string) {
 <template>
   <!-- Reading the revision here re-renders the panel on every model change -->
   <div class="ribo-properties" :data-revision="document.revision.value">
-    <!-- Nothing selected: the design itself -->
-    <template v-if="!selected">
+    <!-- The design: the file as a whole -->
+    <template v-if="isDesign(selected)">
       <label class="ribo-field">
         <span class="ribo-field-label">Name des Designs</span>
         <InputText :model-value="design.name" size="small" fluid @update:model-value="design.name = $event ?? ''" />
       </label>
       <p class="ribo-hint">
+        {{ design.components.size() + 1 }} {{ design.components.size() ? 'Bauteile' : 'Bauteil' }} · {{ design.features.size() }} Features ·
+        {{ design.parameters.size() }} Parameter
+      </p>
+    </template>
+
+    <!-- Nothing selected: the root component -->
+    <template v-else-if="!selected">
+      <p class="ribo-hint">
+        Ausgewählt ist das <strong>Hauptbauteil</strong>: alles, was nicht in einem eigenen Bauteil liegt. Es steht fest.
+      </p>
+      <label class="ribo-switch">
+        <ToggleSwitch :model-value="design.visible" @update:model-value="design.visible = $event" />
+        <span>Hauptbauteil sichtbar</span>
+      </label>
+      <p v-if="!design.features.size()" class="ribo-hint">
         Starte mit <strong>Skizze erstellen</strong> (S): Ebene oder ebene Fläche anklicken, zeichnen, bemaßen, Skizze beenden. Dann
         <strong>Extrudieren</strong> (E) und die Profile im Ansichtsfenster anklicken. Alle Maße sind Ausdrücke in mm bzw. Grad und können
         Parameter verwenden, z.&nbsp;B. <code>wand * 2 + 0.4</code>.
@@ -522,31 +627,57 @@ function setAxis(value: string) {
         />
       </div>
       <div class="ribo-field">
-        <span class="ribo-field-label">Ursprünge</span>
-        <span>1: {{ originName(selected.first) }} · 2: {{ originName(selected.second) }}</span>
+        <span class="ribo-field-label">Bezüge</span>
+        <span class="ribo-origin" :class="{ missing: !selected.first }">
+          1: {{ originName(selected.first) }}
+          <Button v-if="selected.first" v-tooltip="'Bezug 1 neu wählen'" icon="pi pi-refresh" size="small" text rounded @click="repickOrigin('first')" />
+        </span>
+        <span class="ribo-origin" :class="{ missing: !selected.second }">
+          2: {{ originName(selected.second) }}
+          <Button v-if="selected.second" v-tooltip="'Bezug 2 neu wählen'" icon="pi pi-refresh" size="small" text rounded @click="repickOrigin('second')" />
+        </span>
         <small v-if="!selected.first || !selected.second" class="ribo-field-hint">
-          Im Ansichtsfenster eine Kreiskante (Achse, z. B. für Scharniere) oder eine ebene Fläche anklicken – erst am Bauteil, das stehen bleibt, dann am beweglichen.
+          Im Ansichtsfenster eine ebene Fläche, eine Kreiskante (Achse, z. B. für Scharniere) oder eine gerade Kante anklicken – Bezug 1 am Bauteil, das stehen bleibt,
+          Bezug 2 am Bauteil, das sich bewegt.
         </small>
-        <Button v-else label="Ursprünge neu wählen" size="small" text @click="resetOrigins" />
+        <div v-else class="ribo-joint-actions">
+          <Button label="Bezüge tauschen" icon="pi pi-arrow-right-arrow-left" size="small" text @click="document.swapJointOrigins(selected)" />
+          <Button
+            v-if="selected.kind === 'Rigid'"
+            v-tooltip="'Das Bauteil bleibt in seiner jetzigen Lage stehen, die Ausrichtung wird entfernt'"
+            label="In Lage übernehmen"
+            icon="pi pi-check"
+            size="small"
+            text
+            @click="document.applyAlignment(selected)"
+          />
+        </div>
       </div>
-      <template v-if="selected.kind === 'Revolute'">
-        <ExpressionField v-model="selected.angle" label="Winkel" unit="°" :document="document" />
-        <Slider :model-value="jointValue" :min="-180" :max="180" @update:model-value="slide" @slideend="slideEnd" />
-        <ExpressionField v-model="selected.offset" label="Versatz entlang der Achse" unit="mm" :document="document" />
+      <div v-if="facings" class="ribo-field">
+        <span class="ribo-field-label">{{ facings === EDGE_SENSES ? 'Richtung der Kanten' : 'Lage zueinander' }}</span>
+        <SelectButton
+          :model-value="selected.flip"
+          :options="facings"
+          option-label="label"
+          option-value="value"
+          :allow-empty="false"
+          size="small"
+          @update:model-value="selected.flip = $event"
+        />
+        <small v-if="facings === EDGE_SENSES" class="ribo-field-hint">Liegt das Bauteil auf der falschen Seite, die Richtung umschalten.</small>
+      </div>
+      <small v-if="alignmentKinds" class="ribo-field-hint">{{ ALIGNMENT_HINTS[alignmentKinds] }}</small>
+      <template v-for="control in jointControls" :key="control.key">
+        <ExpressionField v-model="selected[control.key]" :label="control.label" :unit="control.unit" :document="document" />
+        <Slider
+          v-if="control.moves"
+          :model-value="jointNumber(control.key)"
+          :min="control.range[0]"
+          :max="control.range[1]"
+          @update:model-value="slide(control.key, $event)"
+          @slideend="slideEnd"
+        />
       </template>
-      <template v-else-if="selected.kind === 'Slider'">
-        <ExpressionField v-model="selected.offset" label="Weg" unit="mm" :document="document" />
-        <Slider :model-value="jointValue" :min="-100" :max="100" @update:model-value="slide" @slideend="slideEnd" />
-        <ExpressionField v-model="selected.angle" label="Drehung um die Achse" unit="°" :document="document" />
-      </template>
-      <template v-else>
-        <ExpressionField v-model="selected.offset" label="Abstand entlang der Achse" unit="mm" :document="document" />
-        <ExpressionField v-model="selected.angle" label="Drehung um die Achse" unit="°" :document="document" />
-      </template>
-      <label class="ribo-switch">
-        <ToggleSwitch :model-value="selected.flip" @update:model-value="selected.flip = $event" />
-        <span>Umkehren (Achsen gleich statt gegeneinander)</span>
-      </label>
     </template>
 
     <!-- Construction plane -->
@@ -655,6 +786,22 @@ function setAxis(value: string) {
 </template>
 
 <style scoped>
+.ribo-origin {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 1.8rem;
+}
+
+.ribo-origin.missing {
+  color: var(--p-orange-500);
+}
+
+.ribo-joint-actions {
+  display: flex;
+  flex-wrap: wrap;
+}
+
 .ribo-properties {
   display: flex;
   flex-direction: column;

@@ -13,7 +13,12 @@
     <eStructuralFeatures xsi:type="ecore:EReference" name="features" upperBound="-1" eType="#//Feature" containment="true"/>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="rollback" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EInt" defaultValueLiteral="-1">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
-        <details key="documentation" value="Timeline marker: only features before this index are built. -1 builds all."/>
+        <details key="documentation" value="Timeline marker of the root component (the design itself) and of the joints: those of its features from this index on are not built. -1 builds all."/>
+      </eAnnotations>
+    </eStructuralFeatures>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="visible" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" defaultValueLiteral="true">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Whether the bodies of the root component (the design itself) are shown."/>
       </eAnnotations>
     </eStructuralFeatures>
     <eStructuralFeatures xsi:type="ecore:EReference" name="components" upperBound="-1" eType="#//Component" containment="true"/>
@@ -313,6 +318,11 @@
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="name" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="grounded" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" defaultValueLiteral="false"/>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="visible" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" defaultValueLiteral="true"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="rollback" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EInt" defaultValueLiteral="-1">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="The component's own timeline marker: its features from this timeline index on are not built. -1 builds all."/>
+      </eAnnotations>
+    </eStructuralFeatures>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="positionX" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="0"/>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="positionY" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="0"/>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="positionZ" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="0"/>
@@ -323,7 +333,7 @@
 
   <eClassifiers xsi:type="ecore:EClass" name="Joint" eSuperTypes="#//Feature">
     <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
-      <details key="documentation" value="Places the component of the second origin so that its origin meets the first, z axes opposed unless flipped. Rigid aligns; Revolute turns about z by angle; Slider moves along z by offset."/>
+      <details key="documentation" value="Places the component of the second origin so that its origin meets the first, z axes opposed (faces against each other) unless flipped (flush). Motion between the origins: shift (shiftX, shiftY, offset) in the first origin's axes, then turn about z by angle, then tilt about x and y. The kind says which of these the user moves: Rigid none, Revolute angle, Slider offset, Cylindrical angle and offset, Planar shifts and angle, Ball the three angles."/>
     </eAnnotations>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="kind" lowerBound="1" eType="#//JointKind" defaultValueLiteral="Rigid"/>
     <eStructuralFeatures xsi:type="ecore:EReference" name="first" eType="#//JointOrigin" containment="true"/>
@@ -331,12 +341,33 @@
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="offset" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="0"/>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="angle" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="0"/>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="flip" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" defaultValueLiteral="false"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="shiftX" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="0"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="shiftY" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="0"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="tiltX" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="0"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="tiltY" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="0"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="alignOnly" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" defaultValueLiteral="false">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Align: once both origins are picked, the component is moved there for good and the joint goes away."/>
+      </eAnnotations>
+    </eStructuralFeatures>
   </eClassifiers>
 
   <eClassifiers xsi:type="ecore:EEnum" name="JointKind">
     <eLiterals name="Rigid"/>
     <eLiterals name="Revolute" value="1"/>
     <eLiterals name="Slider" value="2"/>
+    <eLiterals name="Cylindrical" value="3"/>
+    <eLiterals name="Planar" value="4"/>
+    <eLiterals name="Ball" value="5"/>
+  </eClassifiers>
+
+  <eClassifiers xsi:type="ecore:EEnum" name="OriginKind">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="What a joint origin was picked on: the centre of a flat face, the centre and axis of a circular edge, or the middle of a straight edge (x along it, z the normal of the face it was picked from)."/>
+    </eAnnotations>
+    <eLiterals name="Face"/>
+    <eLiterals name="CircularEdge" value="1"/>
+    <eLiterals name="Edge" value="2"/>
   </eClassifiers>
 
   <eClassifiers xsi:type="ecore:EClass" name="JointOrigin">
@@ -344,6 +375,7 @@
       <details key="documentation" value="A point with axes on a component, in that component's coordinates: z is the joint axis, x the reference for angles."/>
     </eAnnotations>
     <eStructuralFeatures xsi:type="ecore:EReference" name="component" eType="#//Component"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="kind" lowerBound="1" eType="#//OriginKind" defaultValueLiteral="Face"/>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="originX" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0"/>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="originY" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0"/>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="originZ" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0"/>

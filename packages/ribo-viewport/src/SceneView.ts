@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+import { TransformControls } from 'three/addons/controls/TransformControls.js'
 import { LineSegments2 } from 'three/addons/lines/LineSegments2.js'
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js'
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js'
@@ -7,6 +8,7 @@ import { frameFromNormal, originFrame } from 'ribo-geometry'
 import {
   type AnalysisLayer,
   type Frame,
+  type Matrix,
   type BodyMesh,
   type BuildPlan,
   type PlanCurve,
@@ -146,9 +148,21 @@ function faceCentre(face: FaceTriangles): THREE.Vector3 {
   return area > 0 ? sum.divideScalar(area) : sum
 }
 
+/** Start and end of a polyline when it is straight, else undefined */
+function straightOf(points: THREE.Vector3[]): { start: THREE.Vector3; end: THREE.Vector3 } | undefined {
+  const start = points[0]
+  const end = points[points.length - 1]
+  if (!start || !end || start.distanceTo(end) < 1e-6) return undefined
+  const line = new THREE.Line3(start, end)
+  const closest = new THREE.Vector3()
+  const tolerance = Math.max(1e-3, start.distanceTo(end) * 1e-3)
+  return points.every((p) => line.closestPointToPoint(p, false, closest).distanceTo(p) <= tolerance) ? { start, end } : undefined
+}
+
 /** A joint origin found on geometry, in the coordinates of its component */
 export interface JointOriginPick {
   component: number
+  kind: 'Face' | 'CircularEdge' | 'Edge'
   origin: Vec3
   z: Vec3
   x: Vec3
@@ -229,6 +243,17 @@ export interface SceneCallbacks {
   onFaceClick(point: Vec3, existing: number | undefined): void
   /** A joint origin was picked on a circular edge or a flat face */
   onJointOrigin(pick: JointOriginPick): void
+  /** The drag handle moved: position along its axis from its base, mm */
+  onHandleDrag(position: number, phase: 'start' | 'move' | 'end'): void
+  /** The move gizmo moved its component: the component's new placement */
+  onComponentMove(placement: Matrix, phase: 'start' | 'move' | 'end'): void
+}
+
+/** A drag handle: an arrow at `base + direction · position`, dragged along `direction` */
+export interface DragHandle {
+  base: Vec3
+  direction: Vec3
+  position: number
 }
 
 /** Edges or faces offered for picking, with the picks made so far */
@@ -276,7 +301,14 @@ export class SceneView {
   private activeComponent = 0
   private modifier: ModifierPicking | undefined
   private jointPicking = false
+  private readonly handleGroup = new THREE.Group()
+  private handle: DragHandle | undefined
+  private handleDrag: { offset: number } | undefined
   private readonly jointMarkers = new THREE.Group()
+  /** Gizmo moving a whole component; it sits on a stand-in at the centre of the component's bodies */
+  private readonly mover: TransformControls
+  private readonly moverProxy = new THREE.Object3D()
+  private moving: { component: number; pivot: THREE.Vector3 } | undefined
   private readonly lineMaterials: LineMaterial[] = []
   private width = 1
   private height = 1
@@ -315,6 +347,15 @@ export class SceneView {
     this.controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.PAN }
     this.controls.addEventListener('change', () => this.requestRender())
 
+    this.mover = new TransformControls(this.camera, this.renderer.domElement)
+    this.mover.addEventListener('change', () => this.requestRender())
+    this.mover.addEventListener('dragging-changed', (event) => {
+      const dragging = (event as unknown as { value: boolean }).value
+      this.controls.enabled = !dragging
+      this.callbacks.onComponentMove(this.movedPlacement(), dragging ? 'start' : 'end')
+    })
+    this.mover.addEventListener('objectChange', () => this.callbacks.onComponentMove(this.movedPlacement(), 'move'))
+
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 1.5))
     const sun = new THREE.DirectionalLight(0xffffff, 1.7)
     sun.position.set(0.5, -0.3, 1)
@@ -322,10 +363,13 @@ export class SceneView {
     this.ortho.add(sun.clone())
     this.scene.add(this.camera, this.ortho)
 
-    this.scene.add(this.grid, this.bodies, this.regions, this.sketches, this.pickers, this.ghost, this.picked, this.hover, this.analysis, this.constructionPlanes, this.jointMarkers, this.axes)
+    this.scene.add(this.grid, this.bodies, this.regions, this.sketches, this.pickers, this.ghost, this.picked, this.hover, this.analysis, this.constructionPlanes, this.jointMarkers, this.handleGroup, this.axes)
+    this.scene.add(this.moverProxy, this.mover.getHelper())
     this.buildGrid()
 
     const canvas = this.renderer.domElement
+    // Capture phase: the handle must get the press before the orbit controls do
+    input.addEventListener('pointerdown', this.onHandleDown, { capture: true })
     input.addEventListener('pointerdown', this.onPointerDown)
     input.addEventListener('pointermove', this.onPointerMove)
     input.addEventListener('pointerup', this.onPointerUp)
@@ -344,6 +388,8 @@ export class SceneView {
     this.planePickResolve?.(undefined)
     this.resizeObserver.disconnect()
     this.controls.dispose()
+    this.mover.dispose()
+    this.input.removeEventListener('pointerdown', this.onHandleDown, { capture: true })
     this.input.removeEventListener('pointerdown', this.onPointerDown)
     this.input.removeEventListener('pointermove', this.onPointerMove)
     this.input.removeEventListener('pointerup', this.onPointerUp)
@@ -366,6 +412,45 @@ export class SceneView {
   setPlacements(placements: number[][], active: number): void {
     this.placements = placements.map((m) => new THREE.Matrix4().fromArray(m))
     this.activeComponent = active
+    this.updateMover()
+  }
+
+  /** Shows the move gizmo on a component (translating or rotating), or hides it with undefined */
+  setMoving(component: number | undefined, mode: 'translate' | 'rotate' = 'translate'): void {
+    if (this.mover.dragging) return
+    if (component === undefined) {
+      this.moving = undefined
+      this.mover.detach()
+      this.requestRender()
+      return
+    }
+    // The pivot: the middle of the component's bodies, in its own coordinates
+    const box = new THREE.Box3()
+    for (const { mesh, data } of this.bodyMeshes) {
+      if (data.component !== component) continue
+      mesh.geometry.computeBoundingBox()
+      if (mesh.geometry.boundingBox) box.union(mesh.geometry.boundingBox)
+    }
+    this.moving = { component, pivot: box.isEmpty() ? new THREE.Vector3() : box.getCenter(new THREE.Vector3()) }
+    this.mover.setMode(mode)
+    this.mover.attach(this.moverProxy)
+    this.updateMover()
+  }
+
+  /** Puts the stand-in where the moved component is, unless the user is dragging it */
+  private updateMover(): void {
+    if (!this.moving || this.mover.dragging) return
+    const m = this.matrixOf(this.moving.component).clone().multiply(new THREE.Matrix4().makeTranslation(this.moving.pivot))
+    m.decompose(this.moverProxy.position, this.moverProxy.quaternion, this.moverProxy.scale)
+    this.moverProxy.updateMatrixWorld()
+    this.requestRender()
+  }
+
+  /** The placement of the moved component as the gizmo has it */
+  private movedPlacement(): Matrix {
+    this.moverProxy.updateMatrix()
+    const pivot = this.moving?.pivot ?? new THREE.Vector3()
+    return this.moverProxy.matrix.clone().multiply(new THREE.Matrix4().makeTranslation(pivot.clone().negate())).toArray()
   }
 
   private matrixOf(component: number): THREE.Matrix4 {
@@ -458,9 +543,91 @@ export class SceneView {
     this.requestRender()
   }
 
+  // ------------------------------------------------------------ handle
+
+  /** Shows a drag handle, or removes it with undefined */
+  setHandle(handle: DragHandle | undefined): void {
+    this.handle = handle
+    clearGroup(this.handleGroup)
+    if (handle) {
+      const direction = v3(handle.direction).normalize()
+      const size = Math.max(4, Math.min(20, this.camera.position.distanceTo(this.controls.target) / 25))
+      const material = new THREE.MeshBasicMaterial({ color: this.colors.highlight, depthTest: false, transparent: true, opacity: 0.95 })
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(size * 0.06, size * 0.06, size, 12), material)
+      shaft.position.y = size / 2
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(size * 0.22, size * 0.45, 20), material.clone())
+      tip.position.y = size + size * 0.2
+      // A fat invisible grip makes the arrow easy to hit
+      const grip = new THREE.Mesh(new THREE.CylinderGeometry(size * 0.3, size * 0.3, size * 1.5, 8), new THREE.MeshBasicMaterial({ visible: false }))
+      grip.position.y = size * 0.75
+      const arrow = new THREE.Group()
+      arrow.add(shaft, tip, grip)
+      arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction)
+      arrow.position.copy(v3(handle.base).addScaledVector(direction, handle.position))
+      for (const child of arrow.children) child.renderOrder = 15
+      arrow.userData.handle = true
+      this.handleGroup.add(arrow)
+    }
+    this.requestRender()
+  }
+
+  /** Position along the handle axis nearest to the pointer ray */
+  private handlePositionAt(event: PointerEvent): number | undefined {
+    const handle = this.handle
+    if (!handle) return undefined
+    const rect = this.container.getBoundingClientRect()
+    const pointer = new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1)
+    this.raycaster.setFromCamera(pointer, this.camera)
+    const ray = this.raycaster.ray
+    const p = v3(handle.base)
+    const d = v3(handle.direction).normalize()
+    // Closest points of two lines: ray o + s·r and axis p + t·d
+    const w = p.clone().sub(ray.origin)
+    const a = ray.direction.dot(ray.direction)
+    const b = ray.direction.dot(d)
+    const c = d.dot(d)
+    const denom = a * c - b * b
+    if (Math.abs(denom) < 1e-9) return undefined
+    const dw = ray.direction.dot(w)
+    const ew = d.dot(w)
+    return (b * dw - a * ew) / denom
+  }
+
+  private onHandleDown = (event: PointerEvent) => {
+    if (!this.handle || event.button !== 0 || this.view2d) return
+    const rect = this.container.getBoundingClientRect()
+    const pointer = new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1)
+    this.raycaster.setFromCamera(pointer, this.camera)
+    if (!this.raycaster.intersectObjects(this.handleGroup.children, true).length) return
+    event.stopPropagation()
+    event.preventDefault()
+    const at = this.handlePositionAt(event)
+    if (at === undefined) return
+    // Keep the grip where it was grabbed instead of jumping the arrow to the pointer
+    this.handleDrag = { offset: this.handle.position - at }
+    this.controls.enabled = false
+    this.input.setPointerCapture(event.pointerId)
+    const move = (e: PointerEvent) => {
+      const position = this.handlePositionAt(e)
+      if (position === undefined || !this.handleDrag) return
+      this.callbacks.onHandleDrag(position + this.handleDrag.offset, 'move')
+    }
+    const up = (e: PointerEvent) => {
+      this.input.removeEventListener('pointermove', move)
+      this.input.removeEventListener('pointerup', up)
+      this.input.releasePointerCapture(e.pointerId)
+      this.handleDrag = undefined
+      this.controls.enabled = true
+      this.callbacks.onHandleDrag(this.handle?.position ?? 0, 'end')
+    }
+    this.input.addEventListener('pointermove', move)
+    this.input.addEventListener('pointerup', up)
+    this.callbacks.onHandleDrag(this.handle.position, 'start')
+  }
+
   // ------------------------------------------------------------ joints
 
-  /** Offers circular edges and flat faces as joint origins */
+  /** Offers circular and straight edges and flat faces as joint origins */
   setJointPicking(on: boolean): void {
     this.jointPicking = on
     clearGroup(this.hover)
@@ -497,7 +664,7 @@ export class SceneView {
     return group
   }
 
-  /** The joint origin under the pointer: a circular edge's centre first, else the centre of a flat face */
+  /** The joint origin under the pointer: a circular edge's centre or a straight edge's middle first, else the centre of a flat face */
   private jointOriginAt(event: PointerEvent): { pick: JointOriginPick; highlight: THREE.Object3D } | undefined {
     const edge = this.edgeAt(event)
     if (edge) {
@@ -505,7 +672,22 @@ export class SceneView {
       const circle = circleOf(body.edges[edge.edge]!.points)
       if (circle) {
         const x = circle.start.clone().sub(circle.center).normalize()
-        const pick: JointOriginPick = { component: body.data.component, origin: circle.center.toArray() as Vec3, z: circle.normal.toArray() as Vec3, x: x.toArray() as Vec3 }
+        const pick: JointOriginPick = { component: body.data.component, kind: 'CircularEdge', origin: circle.center.toArray() as Vec3, z: circle.normal.toArray() as Vec3, x: x.toArray() as Vec3 }
+        const highlight = new THREE.Group()
+        highlight.add(this.thickLine(body.edges[edge.edge]!.points, this.colors.highlight), this.triad(pick.origin, pick.z, pick.x, 8))
+        return { pick, highlight: this.place(highlight, pick.component) }
+      }
+      const straight = straightOf(body.edges[edge.edge]!.points)
+      if (straight) {
+        // x along the edge, z the normal of the face it was picked from (else any square to the edge)
+        const x = straight.end.clone().sub(straight.start).normalize()
+        const face = this.faceAt(event)
+        const normal = face && face.body === edge.body ? body.data.faces[face.face]?.plane?.normal : undefined
+        let z = normal ? v3(normal).addScaledVector(x, -v3(normal).dot(x)) : new THREE.Vector3()
+        if (z.lengthSq() < 1e-6) z = v3(frameFromNormal([0, 0, 0], x.toArray() as Vec3).x)
+        z.normalize()
+        const middle = straight.start.clone().add(straight.end).multiplyScalar(0.5)
+        const pick: JointOriginPick = { component: body.data.component, kind: 'Edge', origin: middle.toArray() as Vec3, z: z.toArray() as Vec3, x: x.toArray() as Vec3 }
         const highlight = new THREE.Group()
         highlight.add(this.thickLine(body.edges[edge.edge]!.points, this.colors.highlight), this.triad(pick.origin, pick.z, pick.x, 8))
         return { pick, highlight: this.place(highlight, pick.component) }
@@ -518,7 +700,7 @@ export class SceneView {
     if (!plane) return undefined
     const centre = faceCentre(body.faces[face.face]!)
     const frame = frameFromNormal(centre.toArray() as Vec3, plane.normal)
-    const pick: JointOriginPick = { component: body.data.component, origin: centre.toArray() as Vec3, z: frame.normal, x: frame.x }
+    const pick: JointOriginPick = { component: body.data.component, kind: 'Face', origin: centre.toArray() as Vec3, z: frame.normal, x: frame.x }
     const highlight = new THREE.Group()
     highlight.add(this.faceHighlight(body.data, face.face, this.colors.highlight, 0.35), this.triad(pick.origin, pick.z, pick.x, 8))
     return { pick, highlight: this.place(highlight, pick.component) }
@@ -1033,6 +1215,11 @@ export class SceneView {
 
   private onPointerDown = (event: PointerEvent) => {
     // In the 2D view the left button belongs to the sketch tools
+    // A press on the move gizmo belongs to it, not to picking
+    if (this.mover.axis !== null) {
+      this.pressed = undefined
+      return
+    }
     const panning = this.view2d !== undefined && (event.button === 1 || event.button === 2)
     this.pressed = { x: event.clientX, y: event.clientY, button: event.button, panning }
     if (panning) this.input.setPointerCapture(event.pointerId)
@@ -1049,7 +1236,7 @@ export class SceneView {
       this.applySketchView()
       return
     }
-    if (pressed || this.view2d) return
+    if (pressed || this.view2d || this.handleDrag) return
     if (this.jointPicking && !this.planePickResolve) {
       clearGroup(this.hover)
       const found = this.jointOriginAt(event)

@@ -7,6 +7,7 @@
 
 import type { EObject, BasicEObject, EClass, EStructuralFeature } from '@emfts/core';
 import type { Component } from './Component.js';
+import type { OriginKind } from './OriginKind.js';
 
 /**
  * JointOrigin
@@ -14,6 +15,7 @@ import type { Component } from './Component.js';
  */
 export interface JointOrigin extends EObject {
   component?: Component;
+  kind: OriginKind;
   originX: number;
   originY: number;
   originZ: number;

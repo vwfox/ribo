@@ -38,6 +38,7 @@ export class RiboPackage extends BasicEPackage {
     DESIGN__PARAMETERS: null as unknown as EAttribute | EReference,
     DESIGN__FEATURES: null as unknown as EAttribute | EReference,
     DESIGN__ROLLBACK: null as unknown as EAttribute | EReference,
+    DESIGN__VISIBLE: null as unknown as EAttribute | EReference,
     DESIGN__COMPONENTS: null as unknown as EAttribute | EReference,
     DESIGN__ACTIVE_COMPONENT: null as unknown as EAttribute | EReference,
     PARAMETER: null as unknown as EClass,
@@ -140,6 +141,7 @@ export class RiboPackage extends BasicEPackage {
     COMPONENT__NAME: null as unknown as EAttribute | EReference,
     COMPONENT__GROUNDED: null as unknown as EAttribute | EReference,
     COMPONENT__VISIBLE: null as unknown as EAttribute | EReference,
+    COMPONENT__ROLLBACK: null as unknown as EAttribute | EReference,
     COMPONENT__POSITION_X: null as unknown as EAttribute | EReference,
     COMPONENT__POSITION_Y: null as unknown as EAttribute | EReference,
     COMPONENT__POSITION_Z: null as unknown as EAttribute | EReference,
@@ -153,8 +155,14 @@ export class RiboPackage extends BasicEPackage {
     JOINT__OFFSET: null as unknown as EAttribute | EReference,
     JOINT__ANGLE: null as unknown as EAttribute | EReference,
     JOINT__FLIP: null as unknown as EAttribute | EReference,
+    JOINT__SHIFT_X: null as unknown as EAttribute | EReference,
+    JOINT__SHIFT_Y: null as unknown as EAttribute | EReference,
+    JOINT__TILT_X: null as unknown as EAttribute | EReference,
+    JOINT__TILT_Y: null as unknown as EAttribute | EReference,
+    JOINT__ALIGN_ONLY: null as unknown as EAttribute | EReference,
     JOINT_ORIGIN: null as unknown as EClass,
     JOINT_ORIGIN__COMPONENT: null as unknown as EAttribute | EReference,
+    JOINT_ORIGIN__KIND: null as unknown as EAttribute | EReference,
     JOINT_ORIGIN__ORIGIN_X: null as unknown as EAttribute | EReference,
     JOINT_ORIGIN__ORIGIN_Y: null as unknown as EAttribute | EReference,
     JOINT_ORIGIN__ORIGIN_Z: null as unknown as EAttribute | EReference,
@@ -226,6 +234,14 @@ export class RiboPackage extends BasicEPackage {
     design_rollback.setUpperBound(1);
     designClass.getEStructuralFeatures().push(design_rollback);
     RiboPackage.Literals.DESIGN__ROLLBACK = design_rollback;
+
+    // Create visible feature
+    const design_visible = new BasicEAttribute();
+    design_visible.setName('visible');
+    design_visible.setLowerBound(1);
+    design_visible.setUpperBound(1);
+    designClass.getEStructuralFeatures().push(design_visible);
+    RiboPackage.Literals.DESIGN__VISIBLE = design_visible;
 
     // Create components feature
     const design_components = new BasicEReference();
@@ -1089,6 +1105,14 @@ export class RiboPackage extends BasicEPackage {
     componentClass.getEStructuralFeatures().push(component_visible);
     RiboPackage.Literals.COMPONENT__VISIBLE = component_visible;
 
+    // Create rollback feature
+    const component_rollback = new BasicEAttribute();
+    component_rollback.setName('rollback');
+    component_rollback.setLowerBound(1);
+    component_rollback.setUpperBound(1);
+    componentClass.getEStructuralFeatures().push(component_rollback);
+    RiboPackage.Literals.COMPONENT__ROLLBACK = component_rollback;
+
     // Create positionX feature
     const component_positionX = new BasicEAttribute();
     component_positionX.setName('positionX');
@@ -1196,6 +1220,46 @@ export class RiboPackage extends BasicEPackage {
     jointClass.getEStructuralFeatures().push(joint_flip);
     RiboPackage.Literals.JOINT__FLIP = joint_flip;
 
+    // Create shiftX feature
+    const joint_shiftX = new BasicEAttribute();
+    joint_shiftX.setName('shiftX');
+    joint_shiftX.setLowerBound(1);
+    joint_shiftX.setUpperBound(1);
+    jointClass.getEStructuralFeatures().push(joint_shiftX);
+    RiboPackage.Literals.JOINT__SHIFT_X = joint_shiftX;
+
+    // Create shiftY feature
+    const joint_shiftY = new BasicEAttribute();
+    joint_shiftY.setName('shiftY');
+    joint_shiftY.setLowerBound(1);
+    joint_shiftY.setUpperBound(1);
+    jointClass.getEStructuralFeatures().push(joint_shiftY);
+    RiboPackage.Literals.JOINT__SHIFT_Y = joint_shiftY;
+
+    // Create tiltX feature
+    const joint_tiltX = new BasicEAttribute();
+    joint_tiltX.setName('tiltX');
+    joint_tiltX.setLowerBound(1);
+    joint_tiltX.setUpperBound(1);
+    jointClass.getEStructuralFeatures().push(joint_tiltX);
+    RiboPackage.Literals.JOINT__TILT_X = joint_tiltX;
+
+    // Create tiltY feature
+    const joint_tiltY = new BasicEAttribute();
+    joint_tiltY.setName('tiltY');
+    joint_tiltY.setLowerBound(1);
+    joint_tiltY.setUpperBound(1);
+    jointClass.getEStructuralFeatures().push(joint_tiltY);
+    RiboPackage.Literals.JOINT__TILT_Y = joint_tiltY;
+
+    // Create alignOnly feature
+    const joint_alignOnly = new BasicEAttribute();
+    joint_alignOnly.setName('alignOnly');
+    joint_alignOnly.setLowerBound(1);
+    joint_alignOnly.setUpperBound(1);
+    jointClass.getEStructuralFeatures().push(joint_alignOnly);
+    RiboPackage.Literals.JOINT__ALIGN_ONLY = joint_alignOnly;
+
     // Create JointOrigin class
     const jointOriginClass = new BasicEClass();
     jointOriginClass.setName('JointOrigin');
@@ -1213,6 +1277,14 @@ export class RiboPackage extends BasicEPackage {
     jointOrigin_component.setUpperBound(1);
     jointOriginClass.getEStructuralFeatures().push(jointOrigin_component);
     RiboPackage.Literals.JOINT_ORIGIN__COMPONENT = jointOrigin_component;
+
+    // Create kind feature
+    const jointOrigin_kind = new BasicEAttribute();
+    jointOrigin_kind.setName('kind');
+    jointOrigin_kind.setLowerBound(1);
+    jointOrigin_kind.setUpperBound(1);
+    jointOriginClass.getEStructuralFeatures().push(jointOrigin_kind);
+    RiboPackage.Literals.JOINT_ORIGIN__KIND = jointOrigin_kind;
 
     // Create originX feature
     const jointOrigin_originX = new BasicEAttribute();
@@ -1316,6 +1388,7 @@ export class RiboPackage extends BasicEPackage {
     (RiboPackage.Literals.DESIGN__PARAMETERS as BasicEReference).setEType(RiboPackage.Literals.PARAMETER);
     (RiboPackage.Literals.DESIGN__FEATURES as BasicEReference).setEType(RiboPackage.Literals.FEATURE);
     (RiboPackage.Literals.DESIGN__ROLLBACK as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EInt')!);
+    (RiboPackage.Literals.DESIGN__VISIBLE as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EBoolean')!);
     (RiboPackage.Literals.DESIGN__COMPONENTS as BasicEReference).setEType(RiboPackage.Literals.COMPONENT);
     (RiboPackage.Literals.DESIGN__ACTIVE_COMPONENT as BasicEReference).setEType(RiboPackage.Literals.COMPONENT);
     (RiboPackage.Literals.PARAMETER__NAME as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
@@ -1385,6 +1458,7 @@ export class RiboPackage extends BasicEPackage {
     (RiboPackage.Literals.COMPONENT__NAME as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
     (RiboPackage.Literals.COMPONENT__GROUNDED as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EBoolean')!);
     (RiboPackage.Literals.COMPONENT__VISIBLE as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EBoolean')!);
+    (RiboPackage.Literals.COMPONENT__ROLLBACK as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EInt')!);
     (RiboPackage.Literals.COMPONENT__POSITION_X as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
     (RiboPackage.Literals.COMPONENT__POSITION_Y as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
     (RiboPackage.Literals.COMPONENT__POSITION_Z as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
@@ -1396,6 +1470,11 @@ export class RiboPackage extends BasicEPackage {
     (RiboPackage.Literals.JOINT__OFFSET as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
     (RiboPackage.Literals.JOINT__ANGLE as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
     (RiboPackage.Literals.JOINT__FLIP as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EBoolean')!);
+    (RiboPackage.Literals.JOINT__SHIFT_X as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.JOINT__SHIFT_Y as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.JOINT__TILT_X as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.JOINT__TILT_Y as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.JOINT__ALIGN_ONLY as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EBoolean')!);
     (RiboPackage.Literals.JOINT_ORIGIN__COMPONENT as BasicEReference).setEType(RiboPackage.Literals.COMPONENT);
     (RiboPackage.Literals.JOINT_ORIGIN__ORIGIN_X as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
     (RiboPackage.Literals.JOINT_ORIGIN__ORIGIN_Y as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);

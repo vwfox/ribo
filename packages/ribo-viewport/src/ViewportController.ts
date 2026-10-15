@@ -1,5 +1,6 @@
 import { markRaw, ref, shallowReactive, shallowRef, type Component } from 'vue'
 import type { AnalysisLayer, Frame, PlanePick, SketchView, Vec3, ViewportService } from 'ribo-contracts'
+import type { Component as ModelComponent } from 'ribo-model'
 import type { SceneView } from './SceneView'
 
 /**
@@ -11,6 +12,9 @@ export class ViewportController implements ViewportService {
   readonly sketchView = shallowRef<SketchView | undefined>()
   readonly overlays = shallowReactive<Component[]>([])
   readonly picking = ref(false)
+  readonly moving = shallowRef<ModelComponent | undefined>()
+  /** Whether the move gizmo translates or rotates */
+  readonly moveMode = ref<'translate' | 'rotate'>('translate')
   private scene: SceneView | undefined
   private bed: Vec3 = [220, 220, 250]
   private readonly layers = new Map<string, AnalysisLayer>()
@@ -53,6 +57,15 @@ export class ViewportController implements ViewportService {
     } finally {
       this.picking.value = false
     }
+  }
+
+  moveComponent(component: ModelComponent | undefined): void {
+    this.moving.value = component
+    this.moveMode.value = 'translate'
+  }
+
+  setMoveMode(mode: 'translate' | 'rotate'): void {
+    this.moveMode.value = mode
   }
 
   cancelPick(): void {

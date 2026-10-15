@@ -77,3 +77,4 @@ export { SketchAxis, getSketchAxis, getSketchAxisByLiteral } from './SketchAxis.
 export { HoleType, getHoleType, getHoleTypeByLiteral } from './HoleType.js';
 export { PlaneBase, getPlaneBase, getPlaneBaseByLiteral } from './PlaneBase.js';
 export { JointKind, getJointKind, getJointKindByLiteral } from './JointKind.js';
+export { OriginKind, getOriginKind, getOriginKindByLiteral } from './OriginKind.js';
