@@ -190,3 +190,20 @@ export const WASHERS: Record<Size, Washer> = {
 export const screwStandard = (id: string) => SCREWS.find((s) => s.id === id)
 export const nutStandard = (id: string) => NUTS.find((n) => n.id === id)
 export const isSize = (size: string): size is Size => (SIZES as string[]).includes(size)
+
+export interface Insert {
+  /** Diameter of the hole to melt it into, and its length */
+  hole: number
+  length: number
+}
+
+/** Heat-set threaded inserts for printed parts (common short series); the hole is melted into */
+export const INSERTS: Record<Size, Insert> = {
+  M2: { hole: 3.2, length: 4 },
+  'M2.5': { hole: 3.6, length: 5.7 },
+  M3: { hole: 4, length: 5.7 },
+  M4: { hole: 5.6, length: 8.1 },
+  M5: { hole: 6.4, length: 9.5 },
+  M6: { hole: 8, length: 12.7 },
+  M8: { hole: 9.6, length: 12.7 },
+}

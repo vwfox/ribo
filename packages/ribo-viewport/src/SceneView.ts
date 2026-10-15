@@ -49,6 +49,8 @@ const CAMERA_ANIMATION_MS = 280
 const COMPONENT_COLORS = ['#60a5fa', '#f59e0b', '#a78bfa', '#f472b6', '#34d399', '#fb7185', '#facc15']
 /** Screen distance within which an edge counts as under the pointer */
 const EDGE_PICK_PX = 8
+/** Over a face, an edge must be this close to win over it - else narrow faces could not be picked */
+const EDGE_OVER_FACE_PX = 4
 /** How far a remembered pick may lie from the edge or face it stands for, mm */
 const PICK_MATCH_MM = 0.5
 
@@ -161,6 +163,61 @@ function straightOf(points: THREE.Vector3[]): { start: THREE.Vector3; end: THREE
 
 /** Material settings for highlights lying on a body's face: drawn over it, hidden by what is in front */
 const ON_SURFACE = { depthTest: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 } as const
+
+/**
+ * The cylinder a curved face lies on, if it does: its axis is square to all
+ * the face's normals, and the points sit at one distance from it. Returns the
+ * centre of the end nearer `near` (component coordinates), the axis pointing
+ * out of the face there, and the radius.
+ */
+export function cylinderOf(data: BodyMesh, faceIndex: number, near: THREE.Vector3): { origin: Vec3; z: Vec3; x: Vec3; radius: number } | undefined {
+  const face = data.faces[faceIndex]
+  if (!face) return undefined
+  const indexes = new Set<number>()
+  for (let i = face.start; i < face.start + face.count; i++) indexes.add(data.triangles[i]!)
+  const points: THREE.Vector3[] = []
+  const normals: THREE.Vector3[] = []
+  for (const i of indexes) {
+    points.push(new THREE.Vector3(data.vertices[i * 3], data.vertices[i * 3 + 1], data.vertices[i * 3 + 2]))
+    normals.push(new THREE.Vector3(data.normals[i * 3], data.normals[i * 3 + 1], data.normals[i * 3 + 2]).normalize())
+  }
+  if (points.length < 6) return undefined
+  // The axis: square to the two most different normals
+  const first = normals[0]!
+  const other = normals.reduce((a, b) => (b.clone().cross(first).lengthSq() > a.clone().cross(first).lengthSq() ? b : a))
+  const axis = first.clone().cross(other)
+  if (axis.lengthSq() < 1e-4) return undefined
+  axis.normalize()
+  if (normals.some((n) => Math.abs(n.dot(axis)) > 0.05)) return undefined
+  // Square to the axis, every point is its centre plus radius times its normal
+  const flat = (v: THREE.Vector3) => v.clone().addScaledVector(axis, -v.dot(axis))
+  const P = points.map(flat)
+  const N = normals.map(flat)
+  const meanP = P.reduce((a, b) => a.add(b), new THREE.Vector3()).divideScalar(P.length)
+  const meanN = N.reduce((a, b) => a.add(b), new THREE.Vector3()).divideScalar(N.length)
+  let top = 0
+  let bottom = 0
+  P.forEach((p, i) => {
+    const dn = N[i]!.clone().sub(meanN)
+    top += p.clone().sub(meanP).dot(dn)
+    bottom += dn.lengthSq()
+  })
+  if (bottom < 1e-9) return undefined
+  const r = top / bottom
+  const centre = meanP.clone().addScaledVector(meanN, -r)
+  if (P.some((p, i) => p.clone().sub(N[i]!.clone().multiplyScalar(r)).distanceTo(centre) > Math.max(0.05, Math.abs(r) * 0.03))) return undefined
+  // The end nearer the pointer, and the axis pointing away from the face there
+  const along = points.map((p) => p.dot(axis))
+  const low = Math.min(...along)
+  const high = Math.max(...along)
+  const atHigh = Math.abs(near.dot(axis) - high) < Math.abs(near.dot(axis) - low)
+  const origin = centre.clone().addScaledVector(axis, atHigh ? high : low)
+  const z = atHigh ? axis : axis.clone().negate()
+  const x = flat(near).sub(centre)
+  if (x.lengthSq() < 1e-9) x.copy(new THREE.Vector3(1, 0, 0).cross(z).lengthSq() > 1e-6 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0))
+  x.addScaledVector(z, -x.dot(z)).normalize()
+  return { origin: origin.toArray() as Vec3, z: z.toArray() as Vec3, x: x.toArray() as Vec3, radius: Math.abs(r) }
+}
 
 /** A screw to show: its solids along the axis from the seat (see ribo-parts) */
 export interface ShownScrew {
@@ -711,7 +768,10 @@ export class SceneView {
 
   /** The joint origin under the pointer: a circular edge's centre or a straight edge's middle first, else the centre of a flat face */
   private jointOriginAt(event: PointerEvent): { pick: JointOriginPick; highlight: THREE.Object3D } | undefined {
-    const edge = this.edgeAt(event)
+    // Over a face only an edge right under the pointer wins, and only one in sight; with Shift faces only
+    const under = this.faceAt(event)
+    const facesOnly = event.shiftKey && this.jointPicking !== 'circles'
+    const edge = facesOnly ? undefined : this.edgeAt(event, under && this.jointPicking !== 'circles' ? EDGE_OVER_FACE_PX : EDGE_PICK_PX, true)
     if (edge) {
       const body = this.pickBodies[edge.body]!
       const circle = circleOf(body.edges[edge.edge]!.points)
@@ -743,11 +803,19 @@ export class SceneView {
         return { pick, highlight: this.place(highlight, pick.component) }
       }
     }
-    const face = this.jointPicking === 'circles' ? undefined : this.faceAt(event)
+    const face = this.jointPicking === 'circles' ? undefined : under
     if (!face) return undefined
     const body = this.pickBodies[face.body]!
     const plane = body.data.faces[face.face]?.plane
-    if (!plane) return undefined
+    if (!plane) {
+      // A cylindrical face stands for its axis, like a circular edge, at the end nearer the pointer
+      const cylinder = cylinderOf(body.data, face.face, face.point)
+      if (!cylinder) return undefined
+      const pick: JointOriginPick = { component: body.data.component, kind: 'CircularEdge', radius: cylinder.radius, origin: cylinder.origin, z: cylinder.z, x: cylinder.x }
+      const highlight = new THREE.Group()
+      highlight.add(this.faceHighlight(body.data, face.face, this.colors.highlight, 0.35), this.triad(pick.origin, pick.z, pick.x, 8))
+      return { pick, highlight: this.place(highlight, pick.component) }
+    }
     const centre = faceCentre(body.faces[face.face]!)
     const frame = frameFromNormal(centre.toArray() as Vec3, plane.normal)
     const pick: JointOriginPick = { component: body.data.component, kind: 'Face', origin: centre.toArray() as Vec3, z: frame.normal, x: frame.x }
@@ -841,33 +909,47 @@ export class SceneView {
   }
 
   /** The edge nearest to the pointer on screen, within EDGE_PICK_PX */
-  private edgeAt(event: PointerEvent): { body: number; edge: number } | undefined {
+  /**
+   * The edge nearest to the pointer on screen, within `maxPx`. With `visible`
+   * only edges not hidden behind a body count.
+   */
+  private edgeAt(event: PointerEvent, maxPx = EDGE_PICK_PX, visible = false): { body: number; edge: number } | undefined {
     const rect = this.container.getBoundingClientRect()
     const mouse = new THREE.Vector2(event.clientX - rect.left, event.clientY - rect.top)
     const toScreen = (p: THREE.Vector3) => {
       const ndc = p.clone().project(this.camera)
       return new THREE.Vector2(((ndc.x + 1) / 2) * this.width, ((1 - ndc.y) / 2) * this.height)
     }
-    let best: { body: number; edge: number } | undefined
-    let bestDistance = EDGE_PICK_PX
+    const candidates: { body: number; edge: number; distance: number; point: THREE.Vector3 }[] = []
     this.pickBodies.forEach(({ edges, data }, body) =>
       edges.forEach((line, edge) => {
         const matrix = this.matrixOf(data.component)
-        const screen = line.points.map((p) => toScreen(p.clone().applyMatrix4(matrix)))
+        const world = line.points.map((p) => p.clone().applyMatrix4(matrix))
+        const screen = world.map(toScreen)
+        let best: { distance: number; point: THREE.Vector3 } | undefined
         for (let i = 1; i < screen.length; i++) {
           const a = screen[i - 1]!
           const b = screen[i]!
           const ab = b.clone().sub(a)
           const t = Math.max(0, Math.min(1, mouse.clone().sub(a).dot(ab) / (ab.lengthSq() || 1)))
           const d = a.clone().add(ab.multiplyScalar(t)).distanceTo(mouse)
-          if (d < bestDistance) {
-            best = { body, edge }
-            bestDistance = d
-          }
+          if (d < maxPx && (!best || d < best.distance)) best = { distance: d, point: world[i - 1]!.clone().lerp(world[i]!, t) }
         }
+        if (best) candidates.push({ body, edge, ...best })
       }),
     )
-    return best
+    candidates.sort((a, b) => a.distance - b.distance)
+    if (!visible) return candidates[0]
+    const meshes = this.pickBodies.map((b) => b.mesh)
+    return candidates.find(({ point }) => {
+      // Hidden when a body lies between the camera and the edge
+      const from = this.camera.position.clone()
+      const direction = point.clone().sub(from)
+      const length = direction.length()
+      this.raycaster.set(from, direction.normalize())
+      const [hit] = this.raycaster.intersectObjects(meshes, false)
+      return !hit || hit.distance > length - Math.max(0.3, length * 1e-3)
+    })
   }
 
   /** The face under the pointer */

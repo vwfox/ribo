@@ -235,6 +235,17 @@ export interface AnalysisLayer {
 
 export const VIEWPORT = serviceId<ViewportService>('ribo.viewport')
 
+// ---------------------------------------------------------------------------
+// 3D printing
+// ---------------------------------------------------------------------------
+
+export interface PrintService {
+  /** The filament the parts are printed in, e.g. 'PLA' */
+  readonly material: Readonly<Ref<string>>
+}
+
+export const PRINT = serviceId<PrintService>('ribo.print')
+
 /** Screen <-> sketch coordinates of a sketch view */
 export function sketchToScreen(view: SketchView, [u, v]: Vec2): Vec2 {
   return [view.width / 2 + (u - view.center[0]) * view.scale, view.height / 2 - (v - view.center[1]) * view.scale]

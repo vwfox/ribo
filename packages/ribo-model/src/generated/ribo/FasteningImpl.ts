@@ -28,6 +28,9 @@ export class FasteningImpl extends FeatureImpl implements Fastening {
   static readonly NUT_WASHER: number = 9;
   static readonly OFFSET: number = 10;
   static readonly FLIP: number = 11;
+  static readonly HEAD_SEAT: number = 12;
+  static readonly NUT_SEAT: number = 13;
+  static readonly CLEARANCE: number = 14;
 
   // Private fields
   private _holes!: EList<FastenerHole>;
@@ -39,6 +42,9 @@ export class FasteningImpl extends FeatureImpl implements Fastening {
   private _nutWasher: boolean = true;
   private _offset: string = "";
   private _flip: boolean = false;
+  private _headSeat: string = "";
+  private _nutSeat: string = "";
+  private _clearance: string = "0.2";
 
   /**
    * Returns the EClass of this object
@@ -247,6 +253,78 @@ export class FasteningImpl extends FeatureImpl implements Fastening {
     }
   }
 
+  get headSeat(): string {
+    return this._headSeat!;
+  }
+
+  set headSeat(value: string) {
+    const oldValue = this._headSeat;
+    this._headSeat = value;
+    if (this.eDeliver()) {
+      this.eNotify({
+        getNotifier: () => this,
+        getEventType: () => 1, // SET
+        getFeature: () => this.eClass().getEStructuralFeature(FasteningImpl.HEAD_SEAT),
+        getOldValue: () => oldValue,
+        getNewValue: () => value,
+        getPosition: () => -1,
+        wasSet: () => true,
+        isTouch: () => false,
+        isReset: () => false,
+        getFeatureID: () => FasteningImpl.HEAD_SEAT,
+        merge: () => false
+      });
+    }
+  }
+
+  get nutSeat(): string {
+    return this._nutSeat!;
+  }
+
+  set nutSeat(value: string) {
+    const oldValue = this._nutSeat;
+    this._nutSeat = value;
+    if (this.eDeliver()) {
+      this.eNotify({
+        getNotifier: () => this,
+        getEventType: () => 1, // SET
+        getFeature: () => this.eClass().getEStructuralFeature(FasteningImpl.NUT_SEAT),
+        getOldValue: () => oldValue,
+        getNewValue: () => value,
+        getPosition: () => -1,
+        wasSet: () => true,
+        isTouch: () => false,
+        isReset: () => false,
+        getFeatureID: () => FasteningImpl.NUT_SEAT,
+        merge: () => false
+      });
+    }
+  }
+
+  get clearance(): string {
+    return this._clearance!;
+  }
+
+  set clearance(value: string) {
+    const oldValue = this._clearance;
+    this._clearance = value;
+    if (this.eDeliver()) {
+      this.eNotify({
+        getNotifier: () => this,
+        getEventType: () => 1, // SET
+        getFeature: () => this.eClass().getEStructuralFeature(FasteningImpl.CLEARANCE),
+        getOldValue: () => oldValue,
+        getNewValue: () => value,
+        getPosition: () => -1,
+        wasSet: () => true,
+        isTouch: () => false,
+        isReset: () => false,
+        getFeatureID: () => FasteningImpl.CLEARANCE,
+        merge: () => false
+      });
+    }
+  }
+
   // Reflective API
 
   /**
@@ -273,6 +351,12 @@ export class FasteningImpl extends FeatureImpl implements Fastening {
         return this.offset;
       case FasteningImpl.FLIP:
         return this.flip;
+      case FasteningImpl.HEAD_SEAT:
+        return this.headSeat;
+      case FasteningImpl.NUT_SEAT:
+        return this.nutSeat;
+      case FasteningImpl.CLEARANCE:
+        return this.clearance;
       default:
         return super.eGet(feature);
     }
@@ -321,6 +405,18 @@ export class FasteningImpl extends FeatureImpl implements Fastening {
         this.flip = newValue as boolean;
         super.eSet(feature, newValue);
         break;
+      case FasteningImpl.HEAD_SEAT:
+        this.headSeat = newValue as string;
+        super.eSet(feature, newValue);
+        break;
+      case FasteningImpl.NUT_SEAT:
+        this.nutSeat = newValue as string;
+        super.eSet(feature, newValue);
+        break;
+      case FasteningImpl.CLEARANCE:
+        this.clearance = newValue as string;
+        super.eSet(feature, newValue);
+        break;
       default:
         super.eSet(feature, newValue);
     }
@@ -350,6 +446,12 @@ export class FasteningImpl extends FeatureImpl implements Fastening {
         return this._offset !== "";
       case FasteningImpl.FLIP:
         return this._flip !== false;
+      case FasteningImpl.HEAD_SEAT:
+        return this._headSeat !== "";
+      case FasteningImpl.NUT_SEAT:
+        return this._nutSeat !== "";
+      case FasteningImpl.CLEARANCE:
+        return this._clearance !== "0.2";
       default:
         return super.eIsSet(feature);
     }
@@ -387,6 +489,15 @@ export class FasteningImpl extends FeatureImpl implements Fastening {
         return;
       case FasteningImpl.FLIP:
         this._flip = false;
+        return;
+      case FasteningImpl.HEAD_SEAT:
+        this._headSeat = "";
+        return;
+      case FasteningImpl.NUT_SEAT:
+        this._nutSeat = "";
+        return;
+      case FasteningImpl.CLEARANCE:
+        this._clearance = "0.2";
         return;
       default:
         super.eUnset(feature);

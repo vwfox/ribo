@@ -3,9 +3,9 @@
  * material, marks problems in the viewport and exports 3MF/STL.
  */
 
-import { defineComponent, h, markRaw, ref, shallowRef, watch } from 'tsm:vue'
+import { computed, defineComponent, h, markRaw, ref, shallowRef, watch } from 'tsm:vue'
 import type { ModuleContext } from '@eclipse-daanse/tsm'
-import { DOCUMENT, KERNEL, NOTIFIER, PANELS, VIEWPORT, type ExportFormat } from 'ribo-contracts'
+import { DOCUMENT, KERNEL, NOTIFIER, PANELS, PRINT, VIEWPORT, type ExportFormat } from 'ribo-contracts'
 import { analyse, type PrintReport } from './analysis'
 import { loadSettings, saveSettings, type PrintSettings } from './settings'
 import PrintPanel from './PrintPanel.vue'
@@ -33,6 +33,7 @@ export async function activate(context: ModuleContext): Promise<void> {
   const marks = ref({ overhangs: false, thin: false })
 
   viewport.setBed(settings.value.bed)
+  context.services.register(PRINT, { material: computed(() => settings.value.material) })
 
   /** Shows the switched-on marks; none while a sketch is open */
   const showMarks = () => {

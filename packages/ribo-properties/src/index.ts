@@ -4,7 +4,7 @@
 
 import { defineComponent, h, markRaw } from 'tsm:vue'
 import type { ModuleContext } from '@eclipse-daanse/tsm'
-import { DOCUMENT, PANELS, SKETCHER, VIEWPORT } from 'ribo-contracts'
+import { DOCUMENT, PANELS, PRINT, SKETCHER, VIEWPORT } from 'ribo-contracts'
 import type { Sketch } from 'ribo-model'
 import PropertiesPanel from './PropertiesPanel.vue'
 
@@ -14,7 +14,9 @@ export async function activate(context: ModuleContext): Promise<void> {
   const document = context.services.getRequired(DOCUMENT)
   const viewport = context.services.getRequired(VIEWPORT)
   const editSketch = (sketch: Sketch) => context.services.get(SKETCHER)?.edit(sketch)
-  const panel = markRaw(defineComponent({ name: 'RiboPropertiesPanel', setup: () => () => h(PropertiesPanel, { document, editSketch }) }))
+  // The print module may start later; asked when shown
+  const printMaterial = () => context.services.get(PRINT)?.material.value ?? 'PLA'
+  const panel = markRaw(defineComponent({ name: 'RiboPropertiesPanel', setup: () => () => h(PropertiesPanel, { document, editSketch, printMaterial }) }))
   cleanups.push(
     context.services.getRequired(PANELS).register({
       id: 'properties',

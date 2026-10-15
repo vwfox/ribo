@@ -33,10 +33,10 @@ import Slider from 'primevue/slider'
 import { HoleType, type Hole } from 'ribo-model'
 import ExpressionField from './ExpressionField.vue'
 import { HOLE_PRESETS } from './holePresets'
-import { NUTS, SCREWS, SIZES, THREADS, isSize, partName, reportFastening, screwStandard, viewOf } from 'ribo-parts'
+import { NUTS, SCREWS, SIZES, partName, reportFastening, screwStandard, torqueFor, viewOf } from 'ribo-parts'
 import './fields.css'
 
-const props = defineProps<{ document: DocumentService; editSketch: (sketch: Sketch) => void }>()
+const props = defineProps<{ document: DocumentService; editSketch: (sketch: Sketch) => void; printMaterial?: () => string }>()
 
 const selected = computed(() => props.document.selection.value)
 const design = computed(() => props.document.design.value)
@@ -248,6 +248,38 @@ function slideEnd() {
 const SCREW_OPTIONS = SCREWS.map((s) => ({ label: `${s.id} – ${s.name}`, value: s.id }))
 const NUT_OPTIONS = [...NUTS.map((n) => ({ label: `${n.id} – ${n.name}`, value: n.id })), { label: 'Keine – Gewinde im Bauteil oder Einschmelzmutter', value: '' }]
 
+/** How the head sits: on the face, or sunk into it (a countersunk screw in a countersink) */
+const headSeats = computed(() => {
+  const fastening = selected.value
+  const countersunk = isFastening(fastening) && screwStandard(fastening.screw ?? '')?.countersunk
+  return [
+    { label: 'Aufliegend', value: '' },
+    { label: countersunk ? 'Kegelsenkung' : 'Versenkt', value: 'Counterbore' },
+  ]
+})
+
+/** The nut sits on the face or in a trap; without a nut the screw threads into the part or an insert */
+const nutSeats = computed(() => {
+  const fastening = selected.value
+  return isFastening(fastening) && fastening.nut
+    ? [
+        { label: 'Aufliegend', value: '' },
+        { label: 'Mutterfalle', value: 'Trap' },
+      ]
+    : [
+        { label: 'Gewinde im Bauteil', value: '' },
+        { label: 'Einschmelzmutter', value: 'Insert' },
+      ]
+})
+
+/** The nut seat as it applies: a trap needs a nut, an insert none */
+const nutSeatValue = computed(() => {
+  const fastening = selected.value
+  if (!isFastening(fastening)) return ''
+  const seat = fastening.nutSeat ?? ''
+  return nutSeats.value.some((s) => s.value === seat) ? seat : ''
+})
+
 /** Sizes the selected screw standard comes in */
 const fastenerSizes = computed(() => {
   const fastening = selected.value
@@ -264,9 +296,29 @@ const fastenerReports = computed(() => {
   return isFastening(fastening) ? reportFastening(fastening, viewOf(props.document)) : []
 })
 
+/** Tightening torque for the printed parts, from the first screw's stack and the print material */
 const torque = computed(() => {
   const fastening = selected.value
-  return isFastening(fastening) && isSize(fastening.size ?? '') ? THREADS[fastening.size as keyof typeof THREADS].torque : undefined
+  if (!isFastening(fastening)) return undefined
+  const material = props.printMaterial?.() ?? 'PLA'
+  const stack = fastenerReports.value.find((r) => r.stack)?.stack
+  const spec = {
+    screw: fastening.screw ?? 'ISO 4762',
+    size: fastening.size ?? 'M3',
+    headWasher: !!fastening.headWasher,
+    nut: fastening.nut ?? '',
+    nutWasher: !!fastening.nutWasher && !(fastening.nutSeat === 'Trap' && fastening.nut),
+    headSeat: fastening.headSeat ?? '',
+    nutSeat: fastening.nutSeat ?? '',
+    clearance: 0.2,
+  }
+  const advice = torqueFor(spec, stack, material)
+  if (!advice) return undefined
+  // Where the head or the nut presses the part, a washer spreads the load
+  const washers = { ...spec, headWasher: true, nutWasher: !!spec.nut && spec.nutSeat !== 'Trap' }
+  const better = torqueFor(washers, stack, material)
+  const withWasher = better && better.torque > advice.torque + 0.04 && (!spec.headWasher || (washers.nutWasher && !spec.nutWasher)) ? better.torque : undefined
+  return { ...advice, material, withWasher }
 })
 
 function removeFastenerHole(index: number) {
@@ -752,6 +804,38 @@ function setAxis(value: string) {
         <ToggleSwitch :model-value="selected.flip" @update:model-value="selected.flip = $event" />
         <span>Umkehren – das Bauteil auf der Mutterseite umdrehen</span>
       </label>
+      <div class="ribo-field">
+        <span class="ribo-field-label">Kopf</span>
+        <SelectButton
+          :model-value="selected.headSeat ?? ''"
+          :options="headSeats"
+          option-label="label"
+          option-value="value"
+          :allow-empty="false"
+          size="small"
+          @update:model-value="selected.headSeat = $event"
+        />
+      </div>
+      <div class="ribo-field">
+        <span class="ribo-field-label">{{ selected.nut ? 'Mutter' : 'Gegenstück' }}</span>
+        <SelectButton
+          :model-value="nutSeatValue"
+          :options="nutSeats"
+          option-label="label"
+          option-value="value"
+          :allow-empty="false"
+          size="small"
+          @update:model-value="selected.nutSeat = $event"
+        />
+        <small v-if="selected.nut && selected.nutSeat === 'Trap' && selected.nutWasher" class="ribo-field-hint">In der Mutterfalle sitzt die Mutter ohne Scheibe.</small>
+      </div>
+      <ExpressionField
+        v-if="selected.headSeat || selected.nutSeat"
+        v-model="selected.clearance"
+        label="Druckspiel je Seite"
+        unit="mm"
+        :document="document"
+      />
 
       <div class="ribo-field">
         <span class="ribo-field-label">Schrauben</span>
@@ -775,9 +859,15 @@ function setAxis(value: string) {
           <small v-for="hint in report.choice?.hints ?? []" :key="hint" class="ribo-field-hint">{{ hint }}</small>
         </div>
       </div>
-      <small v-if="torque !== undefined" class="ribo-field-hint">
-        Anzugsmoment {{ selected.size }}, 8.8 auf Stahl: {{ torque }} Nm. In gedruckten Teilen nur handfest anziehen – das Normmoment drückt den Kunststoff ein.
-      </small>
+      <div v-if="torque" class="ribo-field">
+        <span class="ribo-field-label">Anzugsmoment</span>
+        <span class="ribo-torque">≈ {{ torque.torque.toFixed(2) }} Nm in {{ torque.material }}</span>
+        <small v-if="torque.withWasher" class="ribo-field-hint">Mit Scheiben ≈ {{ torque.withWasher.toFixed(2) }} Nm – sie verteilen den Druck auf den Kunststoff.</small>
+        <small class="ribo-field-hint">
+          Begrenzt durch: {{ torque.limit }}. Richtwert für Druckteile – das Normmoment 8.8 auf Stahl ({{ torque.steel }} Nm) drückt den Kunststoff ein. Ohne
+          Drehmomentschlüssel: anziehen, bis es anliegt, dann eine Achteldrehung.
+        </small>
+      </div>
     </template>
 
     <!-- Construction plane -->
@@ -886,6 +976,10 @@ function setAxis(value: string) {
 </template>
 
 <style scoped>
+.ribo-torque {
+  font-weight: 600;
+}
+
 .ribo-screw {
   display: flex;
   flex-direction: column;

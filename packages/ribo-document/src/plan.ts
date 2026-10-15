@@ -11,6 +11,7 @@ import {
   isExtrude,
   isConstructionPlane,
   isFillet,
+  isFastening,
   isHole,
   isShell,
   isLine,
@@ -25,7 +26,8 @@ import {
   type Sketch,
   type SketchCircle,
 } from 'ribo-model'
-import type { BuildPlan, FeatureProblem, Frame, HoleFeature, ModifierFeature, PlanCurve, PlanFeature, PlanOperation, PlanRegion, Vec2, Vec3 } from 'ribo-contracts'
+import type { BuildPlan, FeatureProblem, Frame, HoleFeature, ModifierFeature, PlanCurve, PlanFeature, PlanOperation, PlanRegion, PocketFeature, Vec2, Vec3 } from 'ribo-contracts'
+import { pocketsFor } from 'ribo-parts'
 import { evaluateExpression, type Scope } from './expression'
 import { findRegions, frameFromNormal, offsetFrame, originFrame, regionAt, tiltFrame } from 'ribo-geometry'
 
@@ -142,7 +144,7 @@ export interface CompiledPlan {
 export function compilePlan(design: Design): CompiledPlan {
   const scope = scopeOf(evaluateParameters(design))
   const features = design.features.toArray()
-  const planned: (PlanFeature | ModifierFeature | HoleFeature)[] = []
+  const planned: (PlanFeature | ModifierFeature | HoleFeature | (PocketFeature & { component: number }))[] = []
   const problems: FeatureProblem[] = []
   /** Construction planes that made it into the plan */
   const planes = new Set<ConstructionPlane>()
@@ -218,6 +220,43 @@ export function compilePlan(design: Design): CompiledPlan {
         })
         return
       }
+      if (isFastening(feature)) {
+        // The cuts for heads, nuts and inserts, each in its own part
+        const clearance = (feature.clearance ?? '').trim() ? evaluate('Druckspiel', feature.clearance) : 0.2
+        const pockets = pocketsFor({
+          screw: feature.screw ?? 'ISO 4762',
+          size: feature.size ?? 'M3',
+          headWasher: !!feature.headWasher,
+          nut: feature.nut ?? '',
+          nutWasher: !!feature.nutWasher,
+          headSeat: feature.headSeat ?? '',
+          nutSeat: feature.nutSeat ?? '',
+          clearance,
+        })
+        for (const hole of feature.holes.toArray()) {
+          if (!hole.head || !hole.nut) continue
+          for (const pocket of pockets) {
+            const edge = pocket.side === 'head' ? hole.head : hole.nut
+            // The edge's axis points out of the touching face: into the part is the other way
+            const z: Vec3 = [edge.zX, edge.zY, edge.zZ]
+            const length = Math.hypot(...z) || 1
+            planned.push({
+              kind: 'pocket',
+              index,
+              component: componentIndex(design, edge.component),
+              origin: [edge.originX, edge.originY, edge.originZ],
+              inward: [-z[0] / length, -z[1] / length, -z[2] / length],
+              from: pocket.from,
+              shape: pocket.shape,
+              radius: pocket.radius,
+              radiusTo: pocket.radiusTo,
+              depth: pocket.depth,
+              probe: (edge.radius ?? 0) + 0.6,
+            })
+          }
+        }
+        return
+      }
       if (isShell(feature)) {
         const faces = feature.faces.toArray().map((f): Vec3 => [f.x, f.y, f.z])
         if (faces.length === 0) throw new Error('Keine Fläche gewählt – zu öffnende Flächen im Ansichtsfenster anklicken')
@@ -265,7 +304,8 @@ export function compilePlan(design: Design): CompiledPlan {
     }
   })
 
-  return { plan: { features: planned.map((f) => ({ ...f, component: buildComponent(design, features[f.index]!) })) }, problems }
+  // A pocket knows its part; everything else builds where its feature lives
+  return { plan: { features: planned.map((f) => ('component' in f ? f : { ...f, component: buildComponent(design, features[f.index]!) })) }, problems }
 }
 
 /**

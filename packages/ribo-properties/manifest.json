@@ -40,6 +40,10 @@
     {
       "id": "ribo.sketcher",
       "optional": true
+    },
+    {
+      "id": "ribo.print",
+      "optional": true
     }
   ]
 }

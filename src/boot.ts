@@ -84,7 +84,11 @@ export class BootScreen {
     this.hide()
   }
 
-  private readonly onWindowError = (event: ErrorEvent) => this.fail('Laufzeit', event.error ?? event.message)
+  private readonly onWindowError = (event: ErrorEvent) => {
+    // Browsers report a resize that settles in the next frame as an error; it is none
+    if (/ResizeObserver loop/.test(event.message)) return
+    this.fail('Laufzeit', event.error ?? event.message)
+  }
   private readonly onRejection = (event: PromiseRejectionEvent) => this.fail('Laufzeit', event.reason)
 
   private hide(): void {

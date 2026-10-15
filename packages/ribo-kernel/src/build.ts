@@ -8,9 +8,11 @@ import {
   cast,
   draw,
   drawCircle,
+  drawPolysides,
   drawRectangle,
   getOC,
   makeCompound,
+  makeCylinder,
   makeVertex,
   measureDistanceBetween,
   measureVolume,
@@ -33,6 +35,7 @@ import {
   type ModifierFeature,
   type PlanFeature,
   type PlanRegion,
+  type PocketFeature,
   type Vec2,
 } from 'ribo-contracts/geometry'
 import { build3mf } from './threemf'
@@ -234,6 +237,110 @@ function holeTool(sketch: SketchFeature, hole: HoleFeature): Shape3D {
   return fuseAll(tools)
 }
 
+/** How far the probe for a part's outer face reaches along the hole axis */
+const PROBE_LENGTH = 1000
+
+const add3 = (a: Vec3, b: Vec3): Vec3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
+const scale3 = (a: Vec3, s: number): Vec3 => [a[0] * s, a[1] * s, a[2] * s]
+/** Any unit vector square to the unit vector a */
+function across3(a: Vec3): Vec3 {
+  const b: Vec3 = Math.abs(a[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0]
+  const c: Vec3 = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+  return scale3(c, 1 / Math.hypot(...c))
+}
+
+/**
+ * How far into the body, along the hole axis, the piece of material at the
+ * picked hole edge reaches: where its outer face is. The body is cut with a
+ * slim cylinder around the axis; of the pieces, the one at the edge counts.
+ * Undefined when the body has no material there.
+ */
+function outerFace(body: Shape3D, pocket: PocketFeature): number | undefined {
+  const probe = makeCylinder(pocket.probe, PROBE_LENGTH, pocket.origin, pocket.inward)
+  const piece = body.intersect(probe)
+  probe.delete()
+  const start = makeVertex(pocket.origin)
+  const far = add3(pocket.origin, scale3(pocket.inward, PROBE_LENGTH * 2))
+  const wall = (drawCircle(pocket.probe * 4).sketchOnPlane(new Plane(far, across3(pocket.inward), pocket.inward)) as Sketch).face()
+  try {
+    let best: { solid: Shape3D; distance: number } | undefined
+    for (const solid of piece.solids) {
+      const distance = measureDistanceBetween(start, solid)
+      if (!best || distance < best.distance) best = { solid, distance }
+    }
+    // The piece must touch the edge: around a hole it starts one hole radius off the axis
+    if (!best || best.distance > pocket.probe) return undefined
+    return PROBE_LENGTH * 2 - measureDistanceBetween(wall, best.solid)
+  } finally {
+    piece.delete()
+    start.delete()
+    wall.delete()
+  }
+}
+
+/**
+ * The solid a pocket removes: from the part's outer face back towards the
+ * picked edge, or from the picked edge into the part
+ */
+function pocketTool(pocket: PocketFeature, outer: number): Shape3D {
+  const lead = HOLE_LEAD_IN * 4
+  // Along the axis, from `near` (towards the touching face) to `far` (outside the part)
+  const [near, far] = pocket.from === 'outer' ? [outer - pocket.depth, outer + lead] : [-lead, pocket.depth]
+  const start = add3(pocket.origin, scale3(pocket.inward, near))
+  const length = far - near
+  if (pocket.shape === 'round') return makeCylinder(pocket.radius, length, start, pocket.inward)
+  if (pocket.shape === 'hex') {
+    // Across flats 2·radius: the corners lie on a circle 2/√3 times as wide
+    const plane = new Plane(start, across3(pocket.inward), pocket.inward)
+    return (drawPolysides(pocket.radius * (2 / Math.sqrt(3)), 6).sketchOnPlane(plane) as Sketch).extrude(length) as Shape3D
+  }
+  // A countersink: widest at the outer face, narrowing towards the touching face
+  const top = add3(pocket.origin, scale3(pocket.inward, outer + lead))
+  const drill = scale3(pocket.inward, -1)
+  const radial = across3(pocket.inward)
+  const planeNormal: Vec3 = [
+    radial[1] * drill[2] - radial[2] * drill[1],
+    radial[2] * drill[0] - radial[0] * drill[2],
+    radial[0] * drill[1] - radial[1] * drill[0],
+  ]
+  const bottom = pocket.radiusTo ?? 0
+  const widen = (pocket.radius - bottom) / pocket.depth
+  const profile: [number, number][] = [
+    [0, 0],
+    [pocket.radius + lead * widen, 0],
+    [bottom, lead + pocket.depth],
+    [0, lead + pocket.depth],
+  ]
+  const pen = draw(profile[0]!)
+  for (const point of profile.slice(1)) pen.lineTo(point)
+  const section = pen.close().sketchOnPlane(new Plane(top, radial, planeNormal)) as Sketch
+  return section.revolve(drill, { origin: top })
+}
+
+const POCKET_NAMES = { round: 'Die Senkung', hex: 'Die Mutterfalle', cone: 'Die Kegelsenkung' } as const
+
+/** Cuts a pocket into the bodies of its part that have material at its hole */
+function cutPocket(own: Shape3D[], pocket: PocketFeature): { bodies: Shape3D[]; hit: boolean; warning?: string } {
+  let hit = false
+  let warning: string | undefined
+  const bodies = own.map((body) => {
+    const outer = outerFace(body, pocket)
+    if (outer === undefined) return body
+    // Deeper than the part is thick, the pocket leaves nothing to hold on to
+    if (pocket.depth >= outer - 0.3) {
+      const name = pocket.from === 'contact' ? 'Die Bohrung für die Einschmelzmutter' : POCKET_NAMES[pocket.shape]
+      warning = `${name} (${pocket.depth.toFixed(1)} mm) ist so tief wie das Bauteil dick (${outer.toFixed(1)} mm)`
+    }
+    const tool = pocketTool(pocket, outer)
+    const cut = body.cut(tool)
+    tool.delete()
+    body.delete()
+    hit = true
+    return cut
+  })
+  return { bodies, hit, warning }
+}
+
 /** Unites several solids into one, deleting the intermediates */
 function fuseAll(solids: Shape3D[]): Shape3D {
   let result = solids[0]!
@@ -406,6 +513,15 @@ export function buildDesign(plan: BuildPlan): BuiltDesign {
             return drilled
           })
           tool.delete()
+          return next
+        })
+        continue
+      }
+      if (feature.kind === 'pocket') {
+        within(feature.component, (own) => {
+          const { bodies: next, hit, warning } = cutPocket(own, feature)
+          if (!hit) problems.push({ index: feature.index, message: 'Senkung oder Mutterfalle: an der Bohrung kein Material gefunden' })
+          if (warning) problems.push({ index: feature.index, message: warning })
           return next
         })
         continue

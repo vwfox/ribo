@@ -23,5 +23,8 @@ export interface Fastening extends Feature {
   nutWasher: boolean;
   offset: string;
   flip: boolean;
+  headSeat: string;
+  nutSeat: string;
+  clearance: string;
 
 }

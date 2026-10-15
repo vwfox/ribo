@@ -129,13 +129,37 @@ export interface HoleFeature {
 }
 
 /**
+ * A cut a screwed joint makes into one part, in that part's coordinates:
+ * a counterbore or countersink for the head, a nut trap, or the hole for a
+ * heat-set insert. It reaches `depth` into the part, measured from its outer
+ * face along the axis ('outer': the kernel finds that face on the body) or
+ * from the face where the hole edge was picked ('contact').
+ */
+export interface PocketFeature {
+  kind: 'pocket'
+  index: number
+  /** On the hole axis, in the face where the hole edge was picked */
+  origin: Vec3
+  /** Unit direction into the part's material */
+  inward: Vec3
+  from: 'outer' | 'contact'
+  /** Round, hexagonal (radius across flats / 2) or a cone from `radius` to `radiusTo` */
+  shape: 'round' | 'hex' | 'cone'
+  radius: number
+  radiusTo?: number
+  depth: number
+  /** Radius around the axis where the part's outer face is looked for */
+  probe: number
+}
+
+/**
  * A rigid placement as a 4×4 matrix, column-major like three.js: a point p of
  * a component lands at M·p in the assembly.
  */
 export type Matrix = number[]
 
 /** Every planned feature knows the component it builds in: 0 is the design itself, i + 1 its i-th component */
-export type PlannedFeature = (PlanFeature | ModifierFeature | HoleFeature) & { component: number }
+export type PlannedFeature = (PlanFeature | ModifierFeature | HoleFeature | PocketFeature) & { component: number }
 
 export interface BuildPlan {
   features: PlannedFeature[]

@@ -93,7 +93,8 @@ const modifierBanner = computed(() => {
       ? 'Dieselbe Bohrung im Bauteil auf der Mutterseite anklicken – Kante an der Berührfläche'
       : 'Bohrung im Bauteil auf der Kopfseite anklicken – Kante an der Fläche, die das andere Bauteil berührt · weitere Schrauben oder OK'
   }
-  if (joint) return joint.first ? 'Bezug 2 am Bauteil anklicken, das sich bewegt: Fläche, Kreiskante oder Kante' : 'Bezug 1 am stehenden Bauteil anklicken: Fläche, Kreiskante oder Kante'
+  if (joint)
+    return `${joint.first ? 'Bezug 2 am Bauteil anklicken, das sich bewegt' : 'Bezug 1 am stehenden Bauteil anklicken'}: Fläche, Kreiskante oder Kante · Umschalt: nur Flächen`
   const feature = modifierFeature.value
   if (!feature) return undefined
   if (isShell(feature)) return 'Flächen anklicken, die offen bleiben sollen · erneuter Klick entfernt sie'

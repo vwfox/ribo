@@ -413,6 +413,21 @@
         <details key="documentation" value="Turns the nut-side part over: by default the faces of the two hole edges face each other."/>
       </eAnnotations>
     </eStructuralFeatures>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="headSeat" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Cut for the head into the head-side part, from its outer face: '' none (the head rests on the face), 'Counterbore' (sunk; a countersunk screw gets a countersink)."/>
+      </eAnnotations>
+    </eStructuralFeatures>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="nutSeat" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Cut on the nut side: '' none, 'Trap' (hexagonal nut trap from the outer face of the nut-side part), 'Insert' (hole for a heat-set insert from the touching face, without a nut)."/>
+      </eAnnotations>
+    </eStructuralFeatures>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="clearance" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="0.2">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Play per side the cuts get for printing, mm."/>
+      </eAnnotations>
+    </eStructuralFeatures>
   </eClassifiers>
 
   <eClassifiers xsi:type="ecore:EClass" name="FastenerHole">

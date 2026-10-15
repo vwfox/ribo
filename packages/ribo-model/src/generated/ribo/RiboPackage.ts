@@ -183,6 +183,9 @@ export class RiboPackage extends BasicEPackage {
     FASTENING__NUT_WASHER: null as unknown as EAttribute | EReference,
     FASTENING__OFFSET: null as unknown as EAttribute | EReference,
     FASTENING__FLIP: null as unknown as EAttribute | EReference,
+    FASTENING__HEAD_SEAT: null as unknown as EAttribute | EReference,
+    FASTENING__NUT_SEAT: null as unknown as EAttribute | EReference,
+    FASTENING__CLEARANCE: null as unknown as EAttribute | EReference,
     FASTENER_HOLE: null as unknown as EClass,
     FASTENER_HOLE__HEAD: null as unknown as EAttribute | EReference,
     FASTENER_HOLE__NUT: null as unknown as EAttribute | EReference,
@@ -1462,6 +1465,30 @@ export class RiboPackage extends BasicEPackage {
     fasteningClass.getEStructuralFeatures().push(fastening_flip);
     RiboPackage.Literals.FASTENING__FLIP = fastening_flip;
 
+    // Create headSeat feature
+    const fastening_headSeat = new BasicEAttribute();
+    fastening_headSeat.setName('headSeat');
+    fastening_headSeat.setLowerBound(1);
+    fastening_headSeat.setUpperBound(1);
+    fasteningClass.getEStructuralFeatures().push(fastening_headSeat);
+    RiboPackage.Literals.FASTENING__HEAD_SEAT = fastening_headSeat;
+
+    // Create nutSeat feature
+    const fastening_nutSeat = new BasicEAttribute();
+    fastening_nutSeat.setName('nutSeat');
+    fastening_nutSeat.setLowerBound(1);
+    fastening_nutSeat.setUpperBound(1);
+    fasteningClass.getEStructuralFeatures().push(fastening_nutSeat);
+    RiboPackage.Literals.FASTENING__NUT_SEAT = fastening_nutSeat;
+
+    // Create clearance feature
+    const fastening_clearance = new BasicEAttribute();
+    fastening_clearance.setName('clearance');
+    fastening_clearance.setLowerBound(1);
+    fastening_clearance.setUpperBound(1);
+    fasteningClass.getEStructuralFeatures().push(fastening_clearance);
+    RiboPackage.Literals.FASTENING__CLEARANCE = fastening_clearance;
+
     // Create FastenerHole class
     const fastenerHoleClass = new BasicEClass();
     fastenerHoleClass.setName('FastenerHole');
@@ -1627,6 +1654,9 @@ export class RiboPackage extends BasicEPackage {
     (RiboPackage.Literals.FASTENING__NUT_WASHER as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EBoolean')!);
     (RiboPackage.Literals.FASTENING__OFFSET as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
     (RiboPackage.Literals.FASTENING__FLIP as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EBoolean')!);
+    (RiboPackage.Literals.FASTENING__HEAD_SEAT as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.FASTENING__NUT_SEAT as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.FASTENING__CLEARANCE as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
     (RiboPackage.Literals.FASTENER_HOLE__HEAD as BasicEReference).setEType(RiboPackage.Literals.JOINT_ORIGIN);
     (RiboPackage.Literals.FASTENER_HOLE__NUT as BasicEReference).setEType(RiboPackage.Literals.JOINT_ORIGIN);
 

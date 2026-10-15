@@ -7,6 +7,10 @@ import type { BodyMesh, DocumentService, Matrix, Vec3 } from 'ribo-contracts'
 import { applyDirection, applyPoint } from 'ribo-geometry'
 import type { Fastening, JointOrigin } from 'ribo-model'
 import { WASHER_STANDARD, nutStandard, screwStandard } from './catalog'
+import { hasInsert } from './pockets'
+
+/** A nut in a trap sits without a washer */
+const nutWasherOf = (fastening: Fastening) => !!fastening.nutWasher && !(fastening.nutSeat === 'Trap' && fastening.nut)
 import { chooseFastener, partName, type FastenerChoice, type Stack } from './fastener'
 import { materialIn, stackBetween, type HoleEdge } from './stack'
 import { screwSolids, type PartSolid } from './parts'
@@ -58,7 +62,7 @@ const cache = new WeakMap<Fastening, { bodies: BodyMesh[]; placements: Matrix[];
 
 function keyOf(fastening: Fastening, length: number | undefined): string {
   const origin = (o: JointOrigin | undefined) => (o ? [o.originX, o.originY, o.originZ, o.zX, o.zY, o.zZ, o.radius, o.component?.name].join(',') : '-')
-  return [fastening.screw, fastening.size, length, fastening.headWasher, fastening.nut, fastening.nutWasher, ...fastening.holes.toArray().flatMap((h) => [origin(h.head), origin(h.nut)])].join('|')
+  return [fastening.screw, fastening.size, length, fastening.headWasher, fastening.nut, nutWasherOf(fastening), fastening.headSeat, fastening.nutSeat, ...fastening.holes.toArray().flatMap((h) => [origin(h.head), origin(h.nut)])].join('|')
 }
 
 export function reportFastening(fastening: Fastening, view: AssemblyView): ScrewReport[] {
@@ -84,7 +88,7 @@ function computeReports(fastening: Fastening, view: AssemblyView, length: number
     length,
     headWasher: !!fastening.headWasher,
     nut: fastening.nut ?? '',
-    nutWasher: !!fastening.nutWasher,
+    nutWasher: nutWasherOf(fastening),
   }
   return fastening.holes.toArray().map((hole, index) => {
     if (!hole.head || !hole.nut) return { hole: index, problems: ['Bohrung auf der Mutterseite fehlt'] }
@@ -137,8 +141,9 @@ export function billOfMaterials(fastenings: Fastening[], view: AssemblyView): Bo
       if (!report.choice) continue
       add(partName(fastening.screw ?? '', fastening.size ?? '', report.choice.length), screw?.name ?? 'Schraube', 1)
       if (nut) add(partName(nut.id, fastening.size ?? ''), nut.name, 1)
-      const washers = (fastening.headWasher ? 1 : 0) + (nut && fastening.nutWasher ? 1 : 0)
+      const washers = (fastening.headWasher ? 1 : 0) + (nut && nutWasherOf(fastening) ? 1 : 0)
       if (washers) add(partName(WASHER_STANDARD, fastening.size ?? ''), 'Scheibe', washers)
+      if (hasInsert({ nut: fastening.nut ?? '', nutSeat: fastening.nutSeat ?? '' })) add(`Gewindeeinsatz ${fastening.size}`, 'Einschmelzmutter', 1)
     }
   }
   return [...lines.values()].sort((a, b) => a.part.localeCompare(b.part, 'de', { numeric: true }))
