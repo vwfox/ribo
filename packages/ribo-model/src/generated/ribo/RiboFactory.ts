@@ -52,6 +52,10 @@ import type { Joint } from './Joint.js';
 import { JointImpl } from './JointImpl.js';
 import type { JointOrigin } from './JointOrigin.js';
 import { JointOriginImpl } from './JointOriginImpl.js';
+import type { Fastening } from './Fastening.js';
+import { FasteningImpl } from './FasteningImpl.js';
+import type { FastenerHole } from './FastenerHole.js';
+import { FastenerHoleImpl } from './FastenerHoleImpl.js';
 
 /**
  * Factory for creating Ribo model objects
@@ -228,6 +232,20 @@ export class RiboFactory extends BasicEFactory {
   }
 
   /**
+   * Create a new Fastening instance
+   */
+  createFastening(): Fastening {
+    return new FasteningImpl();
+  }
+
+  /**
+   * Create a new FastenerHole instance
+   */
+  createFastenerHole(): FastenerHole {
+    return new FastenerHoleImpl();
+  }
+
+  /**
    * Create an instance of the given class
    */
   override create(eClass: EClass): EObject {
@@ -276,6 +294,10 @@ export class RiboFactory extends BasicEFactory {
         return this.createJoint();
       case 'JointOrigin':
         return this.createJointOrigin();
+      case 'Fastening':
+        return this.createFastening();
+      case 'FastenerHole':
+        return this.createFastenerHole();
       default:
         throw new Error(`Unknown class: ${eClass.getName()}`);
     }

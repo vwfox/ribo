@@ -18,6 +18,7 @@ import Aura from '@primeuix/themes/aura'
 import 'primeicons/primeicons.css'
 
 import { RiboPackage } from 'ribo-model'
+import { BootScreen } from './boot'
 import { TsmPluginSystem } from './tsm'
 import { repositories, startupModules } from './tsm/repositories.config'
 
@@ -26,6 +27,8 @@ function versionOf(library: string): string {
   if (!version) throw new Error(`No version known for shared library '${library}'`)
   return version
 }
+
+const boot = new BootScreen()
 
 async function bootstrap(): Promise<void> {
   // 1. Shared libraries, before any module loads
@@ -45,19 +48,23 @@ async function bootstrap(): Promise<void> {
   tsm.onModuleEvent({
     onModuleEvent: (event) => {
       if (event.error) console.error(`TSM: ${event.moduleId} - ${event.type}`, event.error)
+      boot.onModuleEvent(event)
     },
   })
+  boot.setStatus('Suche Module …')
   await tsm.init()
-  await tsm.loadModules(startupModules)
+  await tsm.loadModules(
+    startupModules,
+    (order) => boot.expect(order),
+    (message) => boot.fail('Abhängigkeiten', message),
+  )
 
   console.info('ribo: loaded modules', tsm.getLoadedModuleIds())
+  boot.done()
 }
 
 bootstrap().catch((error) => {
   console.error('ribo: failed to start', error)
-  const appElement = document.getElementById('app')
-  if (appElement) {
-    appElement.textContent = `ribo konnte nicht starten: ${error}`
-    appElement.style.cssText = 'padding:2rem;color:#dc2626;font-family:sans-serif'
-  }
+  boot.fail('Start', error)
+  boot.done()
 })

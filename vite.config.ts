@@ -151,11 +151,12 @@ export default defineConfig({
         find: new RegExp(`^${moduleId}$`),
         replacement: path.join(folder, entry),
       })),
-      // Libraries without a manifest: contracts, geometry and the generated model
+      // Libraries without a manifest: contracts, geometry, standard parts and the generated model
       { find: /^ribo-contracts\/geometry$/, replacement: fileURLToPath(new URL('./packages/ribo-contracts/src/geometry.ts', import.meta.url)) },
       { find: /^ribo-contracts$/, replacement: fileURLToPath(new URL('./packages/ribo-contracts/src/index.ts', import.meta.url)) },
       { find: /^ribo-geometry$/, replacement: fileURLToPath(new URL('./packages/ribo-geometry/src/index.ts', import.meta.url)) },
       { find: /^ribo-model$/, replacement: fileURLToPath(new URL('./packages/ribo-model/src/index.ts', import.meta.url)) },
+      { find: /^ribo-parts$/, replacement: fileURLToPath(new URL('./packages/ribo-parts/src/index.ts', import.meta.url)) },
       // Working against a local @emfts/core checkout: EMFTS_LOCAL=/path/to/emfts
       ...(process.env.EMFTS_LOCAL
         ? [{ find: /^@emfts\/core$/, replacement: path.resolve(process.env.EMFTS_LOCAL, 'dist/index.js') }]

@@ -11,6 +11,12 @@ import { ACTIONS, DOCUMENT, KERNEL, NOTIFIER, type ExportFormat } from 'ribo-con
 import { download, fileStem, pickFile } from './files'
 
 const AUTOSAVE_KEY = 'ribo.autosave'
+/** Set while a restored autosave is being opened; still set on the next start, it kept ribo from starting */
+const RESTORING_KEY = 'ribo.autosave.restoring'
+/** Where an autosave that kept ribo from starting is put aside */
+const SET_ASIDE_KEY = 'ribo.autosave.setAside'
+/** How long ribo must keep running after the restore for the autosave to count as fine */
+const RESTORE_SETTLE_MS = 4000
 const AUTOSAVE_DELAY_MS = 800
 /** Designs are saved as emfts JSON; XMI files open as well */
 const DESIGN_EXTENSION = '.ribo.json'
@@ -39,13 +45,40 @@ export async function activate(context: ModuleContext): Promise<void> {
   const notifier = context.services.getRequired(NOTIFIER)
   const actions = context.services.getRequired(ACTIONS)
 
+  // An autosave whose restore never finished (a crash or a hang) is not opened again but put aside
+  const storage = {
+    get: (key: string) => {
+      try {
+        return localStorage.getItem(key)
+      } catch {
+        return null
+      }
+    },
+    set: (key: string, value: string | null) => {
+      try {
+        if (value === null) localStorage.removeItem(key)
+        else localStorage.setItem(key, value)
+      } catch {
+        // Storage blocked: no guard, nothing to put aside
+      }
+    },
+  }
   const restored = readAutosave()
-  if (restored) {
+  if (restored && storage.get(RESTORING_KEY)) {
+    storage.set(SET_ASIDE_KEY, restored)
+    storage.set(AUTOSAVE_KEY, null)
+    storage.set(RESTORING_KEY, null)
+    notifier.error('Der zuletzt gespeicherte Stand hat ribo am Start gehindert und wurde nicht geöffnet. „Datei → Verworfenen Stand herunterladen“ sichert ihn.')
+  } else if (restored) {
+    storage.set(RESTORING_KEY, '1')
     try {
       document.load(restored)
     } catch (error) {
       context.log.warn('Autosave could not be restored', error)
     }
+    // Only once ribo has kept running for a while did the restore go well
+    const settled = setTimeout(() => storage.set(RESTORING_KEY, null), RESTORE_SETTLE_MS)
+    cleanups.push(() => clearTimeout(settled))
   }
 
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -76,6 +109,21 @@ export async function activate(context: ModuleContext): Promise<void> {
       run: () => {
         if (document.design.value.features.size() > 0 && !confirm('Aktuelles Design verwerfen?')) return
         document.newDesign()
+      },
+    }),
+    actions.register({
+      id: 'file.recover',
+      label: 'Verworfenen Stand herunterladen',
+      icon: 'pi pi-history',
+      group: 'file',
+      order: 90,
+      // Only while an autosave that kept ribo from starting is set aside
+      visible: () => storage.get(SET_ASIDE_KEY) !== null,
+      run: () => {
+        const json = storage.get(SET_ASIDE_KEY)
+        if (!json) return
+        download(new Blob([json], { type: 'application/json' }), `verworfen${DESIGN_EXTENSION}`)
+        storage.set(SET_ASIDE_KEY, null)
       },
     }),
     actions.register({

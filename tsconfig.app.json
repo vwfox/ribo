@@ -14,7 +14,8 @@
       "ribo-contracts/geometry": ["./packages/ribo-contracts/src/geometry.ts"],
       "ribo-contracts": ["./packages/ribo-contracts/src/index.ts"],
       "ribo-geometry": ["./packages/ribo-geometry/src/index.ts"],
-      "ribo-model": ["./packages/ribo-model/src/index.ts"]
+      "ribo-model": ["./packages/ribo-model/src/index.ts"],
+      "ribo-parts": ["./packages/ribo-parts/src/index.ts"]
     }
   }
 }

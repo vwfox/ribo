@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import Button from 'primevue/button'
 import type { DocumentService } from 'ribo-contracts'
-import { isJoint, type Component, type Joint, type JointOrigin } from 'ribo-model'
+import { isFastening, isJoint, type Component, type Fastening, type Joint, type JointOrigin } from 'ribo-model'
 import { iconOf } from './icons'
 
 const props = defineProps<{ document: DocumentService }>()
@@ -10,9 +10,13 @@ const props = defineProps<{ document: DocumentService }>()
 const KINDS: Record<string, string> = { Rigid: 'Ausrichtung', Revolute: 'Scharnier', Slider: 'Schiebe', Cylindrical: 'Zylinder', Planar: 'Planar', Ball: 'Kugel' }
 const ORIGINS: Record<string, string> = { Face: 'Fläche', CircularEdge: 'Kreiskante', Edge: 'Kante' }
 
+type RelationFeature = Joint | Fastening
+
 interface Relation {
-  joint: Joint
+  joint: RelationFeature
   index: number
+  /** Kind of relation, e.g. "Scharnier" */
+  kind: string
   /** The other component, by name */
   other: string
   origins: string
@@ -30,6 +34,14 @@ interface Node {
 const nameOf = (index: number) => (index === 0 ? 'Hauptbauteil' : (props.document.componentAt(index)?.name ?? `Bauteil ${index}`))
 const originText = (origin: JointOrigin | undefined) => (origin ? (ORIGINS[origin.kind ?? 'Face'] ?? 'Fläche') : '?')
 
+/** The two references a relation ties: a screwed joint's first screw stands for it */
+const endsOf = (feature: RelationFeature): [JointOrigin | undefined, JointOrigin | undefined] =>
+  isFastening(feature) ? [feature.holes.toArray()[0]?.head, feature.holes.toArray()[0]?.nut] : [feature.first, feature.second]
+const isComplete = (feature: RelationFeature) =>
+  isFastening(feature) ? feature.holes.size() > 0 && feature.holes.toArray().every((h) => h.head && h.nut) : !!feature.first && !!feature.second
+/** Holds like an alignment (only joints move) */
+const isFixedRelation = (feature: RelationFeature) => isFastening(feature) || (feature.kind ?? 'Rigid') === 'Rigid'
+
 const model = computed(() => {
   void props.document.revision.value
   const document = props.document
@@ -37,7 +49,7 @@ const model = computed(() => {
   const joints = design.features
     .toArray()
     .map((feature, index) => ({ feature, index }))
-    .filter((j): j is { feature: Joint; index: number } => isJoint(j.feature))
+    .filter((j): j is { feature: RelationFeature; index: number } => isJoint(j.feature) || isFastening(j.feature))
   const sideOf = (origin: JointOrigin | undefined) => (origin ? document.componentIndexOf(origin.component ?? undefined) : undefined)
 
   const node = (index: number): Node => {
@@ -47,20 +59,25 @@ const model = computed(() => {
       .filter(({ feature }) => document.movedBy(feature) === index)
       .map(({ feature, index: at }) => {
         const own = document.movedBy(feature)
-        const otherSide = feature.first && feature.second ? (sideOf(feature.first) === own ? sideOf(feature.second) : sideOf(feature.first)) : undefined
+        const [first, second] = endsOf(feature)
+        const otherSide = first && second ? (sideOf(first) === own ? sideOf(second) : sideOf(first)) : undefined
         return {
           joint: feature,
           index: at,
+          kind: isFastening(feature) ? 'Verschraubung' : (KINDS[feature.kind ?? 'Rigid'] ?? ''),
           other: otherSide === undefined || otherSide === own ? '–' : nameOf(otherSide),
-          origins: `${originText(feature.first)} ↔ ${originText(feature.second)}`,
-          complete: !!feature.first && !!feature.second,
+          origins: isFastening(feature) ? `${feature.holes.size()}× ${feature.screw} ${feature.size}` : `${originText(first)} ↔ ${originText(second)}`,
+          complete: isComplete(feature),
         }
       })
-    const active = joints.filter(({ feature }) => !feature.suppressed && feature.first && feature.second && (sideOf(feature.first) === index || sideOf(feature.second) === index))
+    const active = joints.filter(({ feature }) => {
+      const [first, second] = endsOf(feature)
+      return !feature.suppressed && first && second && (sideOf(first) === index || sideOf(second) === index)
+    })
     let status: Node['status']
     if (index === 0 || component?.grounded) status = { label: 'fixiert', icon: 'pi pi-lock', hint: index === 0 ? 'Das Hauptbauteil steht fest' : 'Fixiert: bleibt an seiner Position' }
     else if (!active.length) status = { label: 'frei', icon: 'pi pi-arrows-alt', hint: 'Keine Beziehung – steht an seiner eigenen Position' }
-    else if (active.some(({ feature }) => (feature.kind ?? 'Rigid') !== 'Rigid')) status = { label: 'beweglich', icon: 'pi pi-sync', hint: 'Über Gelenke beweglich' }
+    else if (active.some(({ feature }) => !isFixedRelation(feature))) status = { label: 'beweglich', icon: 'pi pi-sync', hint: 'Über Gelenke beweglich' }
     else {
       const left = document.freedom.value[index] ?? 0
       status = left
@@ -81,7 +98,8 @@ const problems = computed(() => {
   return map
 })
 
-function facing(joint: Joint) {
+function facing(joint: RelationFeature) {
+  if (isFastening(joint)) return joint.offset && joint.offset !== '0' ? `Abstand ${joint.offset}` : ''
   const kinds = [joint.first?.kind ?? 'Face', joint.second?.kind ?? 'Face']
   const alignment = (joint.kind ?? 'Rigid') === 'Rigid'
   const parts: string[] = []
@@ -92,13 +110,13 @@ function facing(joint: Joint) {
   return parts.join(' · ')
 }
 
-function toggleSuppressed(joint: Joint) {
+function toggleSuppressed(joint: RelationFeature) {
   props.document.history.record('Unterdrücken', () => {
     joint.suppressed = !joint.suppressed
   })
 }
 
-const isSelected = (joint: Joint) => props.document.selection.value === joint
+const isSelected = (joint: RelationFeature) => props.document.selection.value === joint
 </script>
 
 <template>
@@ -106,6 +124,7 @@ const isSelected = (joint: Joint) => props.document.selection.value === joint
     <div class="ribo-relations-tools">
       <Button v-tooltip="'Ausrichtung: zwei Bezüge aufeinander legen'" label="Ausrichtung" icon="pi pi-link" size="small" text @click="document.select(document.addAlignment())" />
       <Button v-tooltip="'Gelenk: bewegliche Verbindung'" label="Gelenk" icon="pi pi-sync" size="small" text @click="document.select(document.addJoint())" />
+      <Button v-tooltip="'Verschraubung: Bohrungen ausrichten, Schraube, Scheibe, Mutter'" label="Verschraubung" icon="pi pi-cog" size="small" text @click="document.select(document.addFastening())" />
     </div>
 
     <p v-if="model.length === 1 && !model[0]!.relations.length" class="ribo-relations-empty">
@@ -128,8 +147,8 @@ const isSelected = (joint: Joint) => props.document.selection.value === joint
         >
           <i :class="iconOf(relation.joint)" />
           <div class="text">
-            <span class="name">{{ relation.joint.name }} <small>{{ KINDS[relation.joint.kind ?? 'Rigid'] }}</small></span>
-            <span class="detail">{{ relation.origins }} · zu {{ relation.other }} · {{ facing(relation.joint) }}</span>
+            <span class="name">{{ relation.joint.name }} <small>{{ relation.kind }}</small></span>
+            <span class="detail">{{ [relation.origins, `zu ${relation.other}`, facing(relation.joint)].filter(Boolean).join(' · ') }}</span>
           </div>
           <i v-if="problems.has(relation.index) || !relation.complete" class="pi pi-exclamation-triangle problem" />
           <Button

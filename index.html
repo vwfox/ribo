@@ -5,9 +5,97 @@
     <link rel="icon" type="image/svg+xml" href="/ribo-icon.svg">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ribo</title>
+    <!-- The start screen: shown before any script runs, filled by src/boot.ts while the modules load -->
+    <style>
+      #ribo-boot {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1.4rem;
+        background: #0f1720;
+        color: #dbe7ee;
+        font: 14px/1.5 system-ui, sans-serif;
+        transition: opacity 0.4s ease;
+      }
+      #ribo-boot .cube-stage {
+        perspective: 600px;
+        width: 64px;
+        height: 64px;
+        margin-bottom: 0.4rem;
+      }
+      #ribo-boot .cube {
+        position: relative;
+        width: 64px;
+        height: 64px;
+        transform-style: preserve-3d;
+        animation: ribo-spin 3.2s linear infinite;
+      }
+      #ribo-boot .cube div {
+        position: absolute;
+        inset: 0;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 4px;
+      }
+      #ribo-boot .cube .f1 { background: #14b8a6; transform: translateZ(32px); }
+      #ribo-boot .cube .f2 { background: #0f766e; transform: rotateY(180deg) translateZ(32px); }
+      #ribo-boot .cube .f3 { background: #115e59; transform: rotateY(90deg) translateZ(32px); }
+      #ribo-boot .cube .f4 { background: #0d9488; transform: rotateY(-90deg) translateZ(32px); }
+      #ribo-boot .cube .f5 { background: #2dd4bf; transform: rotateX(90deg) translateZ(32px); }
+      #ribo-boot .cube .f6 { background: #134e4a; transform: rotateX(-90deg) translateZ(32px); }
+      #ribo-boot.failed .cube { animation-play-state: paused; }
+      @keyframes ribo-spin {
+        from { transform: rotateX(-24deg) rotateY(0deg); }
+        to { transform: rotateX(-24deg) rotateY(360deg); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #ribo-boot .cube { animation-duration: 12s; }
+      }
+      #ribo-boot .title { font-size: 22px; font-weight: 700; letter-spacing: 0.04em; }
+      #ribo-boot .bar { width: 320px; max-width: calc(100vw - 32px); height: 6px; border-radius: 3px; background: #1f2b38; overflow: hidden; }
+      #ribo-boot .bar div { height: 100%; width: 0; background: #14b8a6; transition: width 0.2s ease; }
+      #ribo-boot.failed .bar div { background: #ef4444; }
+      #ribo-boot .status { min-height: 1.5em; color: #8ba0b0; font: 12px/1.5 ui-monospace, monospace; text-align: center; max-width: calc(100vw - 32px); }
+      #ribo-boot .modules { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 6px; max-width: 520px; padding: 0 16px; }
+      #ribo-boot .modules span { font: 11px/1.6 ui-monospace, monospace; padding: 0 6px; border-radius: 3px; background: #1a2430; color: #6b7f8f; }
+      #ribo-boot .modules span.loading { color: #dbe7ee; background: #1f3a3a; }
+      #ribo-boot .modules span.active { color: #5eead4; }
+      #ribo-boot .modules span.error { color: #fca5a5; background: #3a1c1c; }
+      #ribo-boot .errors { max-width: 640px; width: calc(100vw - 32px); max-height: 40vh; overflow: auto; background: #2a1a1a; border: 1px solid #5c3330; border-radius: 6px; padding: 12px 16px; color: #fca5a5; }
+      #ribo-boot .errors pre { margin: 4px 0 8px; white-space: pre-wrap; font: 11px/1.45 ui-monospace, monospace; color: #e8b4b4; }
+      #ribo-boot .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+      #ribo-boot button { padding: 5px 14px; border: 1px solid #5c3330; border-radius: 4px; background: #1f2b38; color: #fca5a5; cursor: pointer; font: inherit; }
+      #ribo-boot button:hover { background: #2a3746; }
+      #ribo-boot button:disabled { opacity: 0.5; cursor: default; }
+    </style>
   </head>
   <body>
+    <div id="ribo-boot" role="status" aria-live="polite">
+      <div class="cube-stage" aria-hidden="true">
+        <div class="cube"><div class="f1"></div><div class="f2"></div><div class="f3"></div><div class="f4"></div><div class="f5"></div><div class="f6"></div></div>
+      </div>
+      <div class="title">ribo</div>
+      <div class="bar"><div></div></div>
+      <div class="status">Starte …</div>
+      <div class="modules"></div>
+    </div>
     <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
+    <script>
+      // Until src/boot.ts takes over: errors that keep the start script itself from running
+      function riboBootError(text) {
+        var root = document.getElementById('ribo-boot')
+        var status = root && root.querySelector('.status')
+        if (!status || window.riboBootReady) return
+        root.className = 'failed'
+        status.textContent = 'ribo konnte nicht starten: ' + text
+      }
+      window.addEventListener('error', function (event) {
+        riboBootError(event.message || String(event.error))
+      })
+    </script>
+    <script type="module" src="/src/main.ts" onerror="riboBootError('Startskript nicht ladbar')"></script>
   </body>
 </html>

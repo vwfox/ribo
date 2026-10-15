@@ -37,6 +37,8 @@ export type { ConstructionPlane } from './ConstructionPlane.js';
 export type { Component } from './Component.js';
 export type { Joint } from './Joint.js';
 export type { JointOrigin } from './JointOrigin.js';
+export type { Fastening } from './Fastening.js';
+export type { FastenerHole } from './FastenerHole.js';
 
 // Implementations (including abstract classes, as they're extended by subclasses)
 export { DesignImpl } from './DesignImpl.js';
@@ -66,6 +68,8 @@ export { ConstructionPlaneImpl } from './ConstructionPlaneImpl.js';
 export { ComponentImpl } from './ComponentImpl.js';
 export { JointImpl } from './JointImpl.js';
 export { JointOriginImpl } from './JointOriginImpl.js';
+export { FasteningImpl } from './FasteningImpl.js';
+export { FastenerHoleImpl } from './FastenerHoleImpl.js';
 
 // Enums
 export { SketchPlane, getSketchPlane, getSketchPlaneByLiteral } from './SketchPlane.js';

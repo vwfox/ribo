@@ -12,6 +12,7 @@ import {
   SketchPlane,
   isComponent,
   isDesign,
+  isFastening,
   isConstructionPlane,
   isEdgeFeature,
   isJoint,
@@ -32,6 +33,7 @@ import Slider from 'primevue/slider'
 import { HoleType, type Hole } from 'ribo-model'
 import ExpressionField from './ExpressionField.vue'
 import { HOLE_PRESETS } from './holePresets'
+import { NUTS, SCREWS, SIZES, THREADS, isSize, partName, reportFastening, screwStandard, viewOf } from 'ribo-parts'
 import './fields.css'
 
 const props = defineProps<{ document: DocumentService; editSketch: (sketch: Sketch) => void }>()
@@ -241,6 +243,38 @@ function slideEnd() {
   if (!sliding) return
   sliding = false
   props.document.history.end()
+}
+
+const SCREW_OPTIONS = SCREWS.map((s) => ({ label: `${s.id} – ${s.name}`, value: s.id }))
+const NUT_OPTIONS = [...NUTS.map((n) => ({ label: `${n.id} – ${n.name}`, value: n.id })), { label: 'Keine – Gewinde im Bauteil oder Einschmelzmutter', value: '' }]
+
+/** Sizes the selected screw standard comes in */
+const fastenerSizes = computed(() => {
+  const fastening = selected.value
+  if (!isFastening(fastening)) return []
+  const standard = screwStandard(fastening.screw ?? '')
+  return SIZES.filter((size) => standard?.heads[size])
+})
+
+/** Per screw of the selected screwed joint: what it clamps and the screw it takes */
+const fastenerReports = computed(() => {
+  void props.document.revision.value
+  void props.document.result.value
+  const fastening = selected.value
+  return isFastening(fastening) ? reportFastening(fastening, viewOf(props.document)) : []
+})
+
+const torque = computed(() => {
+  const fastening = selected.value
+  return isFastening(fastening) && isSize(fastening.size ?? '') ? THREADS[fastening.size as keyof typeof THREADS].torque : undefined
+})
+
+function removeFastenerHole(index: number) {
+  const fastening = selected.value
+  if (!isFastening(fastening)) return
+  props.document.history.record('Schraube entfernen', () => {
+    fastening.holes.remove(fastening.holes.get(index)!)
+  })
 }
 
 /** Clears one origin: the next pick in the viewport sets it again */
@@ -680,6 +714,72 @@ function setAxis(value: string) {
       </template>
     </template>
 
+    <!-- Screwed joint -->
+    <template v-else-if="isFastening(selected)">
+      <label class="ribo-field">
+        <span class="ribo-field-label">Name</span>
+        <InputText :model-value="selected.name" size="small" fluid @update:model-value="selected.name = $event ?? ''" />
+      </label>
+      <label class="ribo-field">
+        <span class="ribo-field-label">Schraube</span>
+        <Select :model-value="selected.screw" :options="SCREW_OPTIONS" option-label="label" option-value="value" size="small" fluid @update:model-value="selected.screw = $event" />
+      </label>
+      <div class="ribo-field">
+        <span class="ribo-field-label">Größe</span>
+        <SelectButton :model-value="selected.size" :options="fastenerSizes" :allow-empty="false" size="small" @update:model-value="selected.size = $event" />
+      </div>
+      <ExpressionField v-model="selected.length" label="Länge" unit="mm" empty-hint="leer = passende Normlänge wählen" :document="document" />
+      <label class="ribo-switch">
+        <ToggleSwitch :model-value="selected.headWasher" @update:model-value="selected.headWasher = $event" />
+        <span>Scheibe unter dem Kopf</span>
+      </label>
+      <label class="ribo-field">
+        <span class="ribo-field-label">Mutter</span>
+        <Select :model-value="selected.nut" :options="NUT_OPTIONS" option-label="label" option-value="value" size="small" fluid @update:model-value="selected.nut = $event" />
+      </label>
+      <label v-if="selected.nut" class="ribo-switch">
+        <ToggleSwitch :model-value="selected.nutWasher" @update:model-value="selected.nutWasher = $event" />
+        <span>Scheibe unter der Mutter</span>
+      </label>
+      <ExpressionField
+        v-model="selected.offset"
+        label="Abstand zwischen den Bohrungskanten"
+        unit="mm"
+        empty-hint="leer = nur fluchten, die Bauteile bleiben auf Abstand (z. B. mit Hohlraum dazwischen)"
+        :document="document"
+      />
+      <label class="ribo-switch">
+        <ToggleSwitch :model-value="selected.flip" @update:model-value="selected.flip = $event" />
+        <span>Umkehren – das Bauteil auf der Mutterseite umdrehen</span>
+      </label>
+
+      <div class="ribo-field">
+        <span class="ribo-field-label">Schrauben</span>
+        <small v-if="!fastenerReports.length" class="ribo-field-hint">
+          Im Ansichtsfenster je Schraube zwei Bohrungskanten anklicken, jeweils an den Flächen, mit denen sich die Bauteile berühren: erst im Bauteil auf
+          der Kopfseite, dann im Bauteil auf der Mutterseite. Die Klemmlänge findet ribo selbst.
+        </small>
+        <div v-for="report in fastenerReports" :key="report.hole" class="ribo-screw">
+          <div class="ribo-screw-head">
+            <span>
+              {{ report.hole + 1 }}:
+              <strong v-if="report.choice">{{ partName(selected.screw ?? '', selected.size ?? '', report.choice.length) }}</strong>
+            </span>
+            <Button v-tooltip="'Diese Schraube entfernen'" icon="pi pi-times" size="small" text rounded @click="removeFastenerHole(report.hole)" />
+          </div>
+          <small v-if="report.stack" class="ribo-field-hint">
+            Klemmlänge {{ report.stack.grip.toFixed(1) }} mm<template v-if="report.choice"> · nötig {{ report.choice.needed.toFixed(1) }} mm</template>
+            <template v-if="report.stack.hole"> · Bohrung ⌀{{ report.stack.hole.toFixed(2) }}</template>
+          </small>
+          <small v-for="problem in report.problems" :key="problem" class="ribo-screw-problem">{{ problem }}</small>
+          <small v-for="hint in report.choice?.hints ?? []" :key="hint" class="ribo-field-hint">{{ hint }}</small>
+        </div>
+      </div>
+      <small v-if="torque !== undefined" class="ribo-field-hint">
+        Anzugsmoment {{ selected.size }}, 8.8 auf Stahl: {{ torque }} Nm. In gedruckten Teilen nur handfest anziehen – das Normmoment drückt den Kunststoff ein.
+      </small>
+    </template>
+
     <!-- Construction plane -->
     <template v-else-if="isConstructionPlane(selected)">
       <label class="ribo-field">
@@ -772,7 +872,7 @@ function setAxis(value: string) {
 
     <div v-if="selected" class="ribo-actions">
       <Button
-        v-if="isProfileFeature(selected) || isEdgeFeature(selected) || isShell(selected) || isHole(selected) || isJoint(selected)"
+        v-if="isProfileFeature(selected) || isEdgeFeature(selected) || isShell(selected) || isHole(selected) || isJoint(selected) || isFastening(selected)"
         v-tooltip.bottom="'Änderungen sind übernommen – schließt den Schritt (Enter)'"
         label="OK"
         icon="pi pi-check"
@@ -786,6 +886,23 @@ function setAxis(value: string) {
 </template>
 
 <style scoped>
+.ribo-screw {
+  display: flex;
+  flex-direction: column;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--p-content-border-color);
+}
+
+.ribo-screw-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ribo-screw-problem {
+  color: var(--p-red-500);
+}
+
 .ribo-origin {
   display: flex;
   align-items: center;

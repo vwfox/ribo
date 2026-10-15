@@ -385,6 +385,42 @@
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="xX" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="1"/>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="xY" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0"/>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="xZ" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="radius" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EDouble" defaultValueLiteral="0">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Radius of a circular edge picked as origin, mm; 0 for other kinds."/>
+      </eAnnotations>
+    </eStructuralFeatures>
+  </eClassifiers>
+
+  <eClassifiers xsi:type="ecore:EClass" name="Fastening" eSuperTypes="#//Feature">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="Screws components together through pairs of holes: each pair's axes are lined up (and the hole edges put at the offset, if one is given) - softly, so a screw never drags parts that other relations hold; it reports holes that do not line up instead and fastened with a standard screw, washers and nut. The standards are catalogue ids (e.g. 'ISO 4762', 'ISO 4032'); an empty nut means the screw threads into the part or an insert. An empty length is chosen from the clamped thickness."/>
+    </eAnnotations>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="holes" upperBound="-1" eType="#//FastenerHole" containment="true"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="screw" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="ISO 4762"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="size" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="M3"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="length" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral=""/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="headWasher" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" defaultValueLiteral="false"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="nut" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="ISO 4032"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="nutWasher" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" defaultValueLiteral="true"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="offset" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" defaultValueLiteral="">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Distance between the hole edges along the axis. Empty: the holes only line up and the parts keep the distance other relations give them."/>
+      </eAnnotations>
+    </eStructuralFeatures>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="flip" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" defaultValueLiteral="false">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Turns the nut-side part over: by default the faces of the two hole edges face each other."/>
+      </eAnnotations>
+    </eStructuralFeatures>
+  </eClassifiers>
+
+  <eClassifiers xsi:type="ecore:EClass" name="FastenerHole">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="One screw position: the hole edge on the head side and the one on the nut side, each a circular edge on its component."/>
+    </eAnnotations>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="head" eType="#//JointOrigin" containment="true"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="nut" eType="#//JointOrigin" containment="true"/>
   </eClassifiers>
 
 </ecore:EPackage>

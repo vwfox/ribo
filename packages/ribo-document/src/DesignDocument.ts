@@ -15,6 +15,7 @@ import {
   isBodyModifier,
   isComponent,
   isConstructionPlane,
+  isFastening,
   isJoint,
   isFeature,
   isHole,
@@ -33,6 +34,7 @@ import {
   type EdgeFeature,
   type Feature,
   type Hole,
+  type Fastening,
   type Joint,
   type JointOrigin,
   type Parameter,
@@ -361,7 +363,8 @@ export class DesignDocument implements DocumentService {
   }
 
   componentAt(index: number): Component | undefined {
-    return index <= 0 ? undefined : this.design.value.components.get(index - 1)
+    // EList.get throws past the end
+    return index <= 0 ? undefined : this.design.value.components.toArray()[index - 1]
   }
 
   addJoint(): Joint {
@@ -391,7 +394,40 @@ export class DesignDocument implements DocumentService {
     })
   }
 
-  movedBy(joint: Joint): number {
+  addFastening(): Fastening {
+    const fastening = this.factory.createFastening()
+    fastening.name = this.nextFeatureName('Verschraubung')
+    // Like joints, screwed joints belong to the assembly
+    this.history.record('Verschraubung', () => {
+      const active = this.design.value.activeComponent
+      this.design.value.activeComponent = undefined as never
+      this.insertFeature(fastening)
+      this.design.value.activeComponent = active as Component
+    })
+    this.select(fastening)
+    return fastening
+  }
+
+  addFastenerHole(fastening: Fastening, component: number, origin: Vec3, z: Vec3, x: Vec3, radius: number): void {
+    const value: JointOrigin = this.factory.createJointOrigin()
+    value.component = this.componentAt(component) as Component
+    value.kind = 'CircularEdge'
+    value.radius = radius
+    ;[value.originX, value.originY, value.originZ] = origin
+    ;[value.zX, value.zY, value.zZ] = z
+    ;[value.xX, value.xY, value.xZ] = x
+    this.history.record('Bohrung', () => {
+      const last = fastening.holes.toArray().at(-1)
+      if (last && !last.nut) last.nut = value
+      else {
+        const hole = this.factory.createFastenerHole()
+        hole.head = value
+        fastening.holes.add(hole)
+      }
+    })
+  }
+
+  movedBy(joint: Joint | Fastening): number {
     return movedBy(this.design.value, joint)
   }
 
@@ -644,6 +680,11 @@ export class DesignDocument implements DocumentService {
       for (const feature of design.features.toArray()) {
         const holds = isJoint(feature) && (feature.first?.component === object || feature.second?.component === object)
         if (feature.component === object || holds) this.removeNow(feature)
+        else if (isFastening(feature)) {
+          // Screws through the component go; a screwed joint left without any goes too
+          for (const hole of feature.holes.toArray()) if (hole.head?.component === object || hole.nut?.component === object) feature.holes.remove(hole)
+          if (!feature.holes.size()) this.removeNow(feature)
+        }
       }
       if (design.activeComponent === object) design.activeComponent = undefined as never
       design.components.remove(object)

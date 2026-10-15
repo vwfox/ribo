@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import Button from 'primevue/button'
 import type { EObject } from '@emfts/core'
 import type { DocumentService } from 'ribo-contracts'
-import { isConstructionPlane, isJoint, isSketch, type Component, type Feature, type Sketch } from 'ribo-model'
+import { isConstructionPlane, isFastening, isJoint, isSketch, type Component, type Feature, type Sketch } from 'ribo-model'
 import { iconOf } from './icons'
 
 const props = defineProps<{ document: DocumentService; editSketch: (sketch: Sketch) => void }>()
@@ -34,7 +34,7 @@ const model = computed(() => {
   const features = design.features.toArray()
   const bodies = document.result.value?.bodies ?? []
   const node = (index: number): Node => {
-    const own = features.filter((f) => !isJoint(f) && document.componentIndexOf(f) === index)
+    const own = features.filter((f) => !isJoint(f) && !isFastening(f) && document.componentIndexOf(f) === index)
     let number = 0
     return {
       index,

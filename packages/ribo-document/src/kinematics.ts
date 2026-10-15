@@ -20,9 +20,9 @@
 
 import type { FeatureProblem, Matrix } from 'ribo-contracts'
 import { IDENTITY, frameMatrix, invert, multiply, placement, rotation, translation } from 'ribo-geometry'
-import { isJoint, type Design, type Joint, type JointOrigin } from 'ribo-model'
+import { isFastening, isJoint, type Design, type Fastening, type Joint, type JointOrigin } from 'ribo-model'
 import { componentIndex, isRolledBack } from './plan'
-import { ALIGNMENT_TOLERANCE, alignmentError, referenceOf, solveAlignments, type Alignment } from './constraints'
+import { ALIGNMENT_TOLERANCE, alignmentError, holeMismatch, referenceOf, solveAlignments, type Alignment } from './constraints'
 
 export interface Assembly {
   /** Placement per component index (0: the design itself) */
@@ -46,12 +46,18 @@ export function jointMotion(joint: Joint, evaluate: Evaluate): Matrix {
   return joint.flip ? motion : multiply(motion, rotation('X', 180))
 }
 
-/** Component index of the side a joint moves: the second, unless that one is fixed and the first is not */
-export function movedBy(design: Design, joint: Joint): number {
-  const fixed = (index: number) => index === 0 || design.components.get(index - 1)?.grounded === true
-  const first = componentIndex(design, joint.first?.component)
-  const second = componentIndex(design, joint.second?.component)
-  if (!joint.second) return first
+/**
+ * Component index of the side a relation moves: the second (a screw's nut
+ * side), unless that one is fixed and the first is not
+ */
+export function movedBy(design: Design, relation: Joint | Fastening): number {
+  // EList.get throws past the end: a screwed joint may have no holes yet
+  const firstHole = isFastening(relation) ? relation.holes.toArray()[0] : undefined
+  const [a, b] = isFastening(relation) ? [firstHole?.head, firstHole?.nut] : [relation.first, relation.second]
+  const fixed = (index: number) => index === 0 || design.components.toArray()[index - 1]?.grounded === true
+  const first = componentIndex(design, a?.component)
+  const second = componentIndex(design, b?.component)
+  if (!b) return first
   return fixed(second) && !fixed(first) ? first : second
 }
 
@@ -108,6 +114,29 @@ export function solveAssembly(design: Design, evaluate: Evaluate): Assembly {
       problems.push({ index, message: (error as Error).message })
     }
   }
+  // Each screw lines up its two holes: the axes coincide, the hole edges at the offset
+  const fastenings = features
+    .map((feature, index) => ({ feature, index }))
+    .filter((f): f is { feature: Fastening; index: number } => isFastening(f.feature) && !f.feature.suppressed && !isRolledBack(design, f.feature, f.index))
+  for (const { feature, index } of fastenings) {
+    let offset: number | undefined
+    try {
+      // Empty: the holes only line up, the parts keep the distance the rest gives them
+      offset = (feature.offset ?? '').trim() ? evaluate('Abstand', feature.offset) : undefined
+    } catch (error) {
+      problems.push({ index, message: (error as Error).message })
+      continue
+    }
+    const holes = feature.holes.toArray()
+    if (!holes.length || holes.some((hole) => !hole.head || !hole.nut)) problems.push({ index, message: 'Bohrung auf der Mutterseite fehlt – im Ansichtsfenster anklicken' })
+    for (const hole of holes) {
+      if (!hole.head || !hole.nut) continue
+      const first = referenceOf(hole.head, componentIndex(design, hole.head.component))
+      const second = referenceOf(hole.nut, componentIndex(design, hole.nut.component))
+      if (first.component === second.component) continue
+      alignments.push({ index, alignment: { first, second, flush: !!feature.flip, offset, sensed: true, soft: true } })
+    }
+  }
   let alignmentsSolved = false
   const freedom: (number | undefined)[] = own.map(() => undefined)
 
@@ -129,7 +158,15 @@ export function solveAssembly(design: Design, evaluate: Evaluate): Assembly {
     }
     for (const { alignment, index } of alignments) {
       const error = alignmentError(alignment, current[alignment.first.component]!, current[alignment.second.component]!)
-      if (error > ALIGNMENT_TOLERANCE * 10) {
+      if (error > ALIGNMENT_TOLERANCE * 10 && alignment.soft) {
+        // A screw that does not fit says how far off its holes are, and leaves the rest alone
+        const miss = holeMismatch(alignment, current[alignment.first.component]!, current[alignment.second.component]!)
+        const parts: string[] = []
+        if (miss.tilt > 0.05) parts.push(`Achsen um ${miss.tilt.toFixed(1)}° verkippt`)
+        if (miss.across > 0.01) parts.push(`${miss.across.toFixed(2)} mm versetzt`)
+        if (alignment.offset !== undefined && Math.abs(miss.along - alignment.offset) > 0.01) parts.push(`Bohrungskanten ${miss.along.toFixed(2)} statt ${alignment.offset} mm auseinander`)
+        problems.push({ index, message: `Bohrungen fluchten nicht: ${parts.join(', ') || 'andere Beziehungen halten die Bauteile anders'}` })
+      } else if (error > ALIGNMENT_TOLERANCE * 10) {
         problems.push({
           index,
           message: free.includes(alignment.first.component) || free.includes(alignment.second.component) ? 'Widerspricht anderen Beziehungen – lässt sich nicht erfüllen' : 'Beide Bauteile liegen schon fest – diese Ausrichtung wird nicht erfüllt',

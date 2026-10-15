@@ -52,8 +52,11 @@ export class TsmPluginSystem {
     this.logger.info(`[TSM] Discovered ${discovered.length} modules`)
   }
 
-  /** Loads the given modules and their dependencies in dependency order. */
-  async loadModules(moduleIds: string[]): Promise<void> {
+  /**
+   * Loads the given modules and their dependencies in dependency order. The
+   * order is told to `onPlan` first; a module that fails does not stop the others.
+   */
+  async loadModules(moduleIds: string[], onPlan?: (order: string[]) => void, onMissing?: (message: string) => void): Promise<void> {
     const manifests = new Map(this.registry.getManifests().map((m) => [m.id, m]))
     const toLoad: ModuleManifest[] = []
     const visited = new Set<string>()
@@ -64,6 +67,7 @@ export class TsmPluginSystem {
       const manifest = manifests.get(id)
       if (!manifest) {
         this.logger.warn(`[TSM] Module not found: ${id}`)
+        onMissing?.(`Modul nicht gefunden: ${id}`)
         return
       }
       for (const dep of manifest.dependencies ?? []) collect(typeof dep === 'string' ? dep : dep.id)
@@ -74,11 +78,18 @@ export class TsmPluginSystem {
     const result = this.resolver.resolve(toLoad)
     for (const missing of result.missing) {
       this.logger.error(`[TSM] Missing dependency: ${missing.missingDep} required by ${missing.moduleId}`)
+      onMissing?.(`${missing.moduleId} braucht ${missing.missingDep}, das fehlt`)
     }
 
+    onPlan?.(result.loadOrder.map((m) => m.id))
     this.loader.register(result.loadOrder)
     for (const manifest of result.loadOrder) {
-      await this.loader.loadModule(manifest)
+      try {
+        await this.loader.loadModule(manifest)
+      } catch (error) {
+        // The loader reports it as a module event too; the next modules still get their chance
+        this.logger.error(`[TSM] ${manifest.id} failed to load`, error)
+      }
     }
   }
 

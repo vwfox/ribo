@@ -106,8 +106,8 @@ function distanceToPolyline(p: THREE.Vector3, points: THREE.Vector3[]): number {
   return best
 }
 
-/** The circle a polyline runs on, when it does: centre, axis and a point on it */
-function circleOf(points: THREE.Vector3[]): { center: THREE.Vector3; normal: THREE.Vector3; start: THREE.Vector3 } | undefined {
+/** The circle a polyline runs on, when it does: centre, axis, a point on it and radius */
+function circleOf(points: THREE.Vector3[]): { center: THREE.Vector3; normal: THREE.Vector3; start: THREE.Vector3; radius: number } | undefined {
   if (points.length < 4) return undefined
   const a = points[0]!
   const b = points[Math.floor(points.length / 3)]!
@@ -131,7 +131,7 @@ function circleOf(points: THREE.Vector3[]): { center: THREE.Vector3; normal: THR
   normal.normalize()
   const radius = center.distanceTo(a)
   const fits = points.every((p) => Math.abs(p.distanceTo(center) - radius) < 1e-3 * Math.max(1, radius) && Math.abs(p.clone().sub(center).dot(normal)) < 1e-3)
-  return fits ? { center, normal, start: a } : undefined
+  return fits ? { center, normal, start: a, radius } : undefined
 }
 
 /** Area-weighted centre of a face's triangles */
@@ -159,10 +159,23 @@ function straightOf(points: THREE.Vector3[]): { start: THREE.Vector3; end: THREE
   return points.every((p) => line.closestPointToPoint(p, false, closest).distanceTo(p) <= tolerance) ? { start, end } : undefined
 }
 
+/** Material settings for highlights lying on a body's face: drawn over it, hidden by what is in front */
+const ON_SURFACE = { depthTest: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 } as const
+
+/** A screw to show: its solids along the axis from the seat (see ribo-parts) */
+export interface ShownScrew {
+  seat: Vec3
+  direction: Vec3
+  solids: { shape: 'round' | 'hex' | 'cone'; radius: number; radiusTo?: number; inner?: number; from: number; to: number }[]
+  state: 'normal' | 'selected' | 'problem'
+}
+
 /** A joint origin found on geometry, in the coordinates of its component */
 export interface JointOriginPick {
   component: number
   kind: 'Face' | 'CircularEdge' | 'Edge'
+  /** Radius of a circular edge */
+  radius?: number
   origin: Vec3
   z: Vec3
   x: Vec3
@@ -228,6 +241,8 @@ interface PickTarget {
   object: THREE.Object3D
   /** What a click on this object means */
   resolve(hit: THREE.Intersection): PickResult | undefined
+  /** A body: what lies behind it cannot be picked through it, even where it offers nothing itself */
+  opaque?: boolean
 }
 
 type PickResult = { kind: 'plane'; pick: PlanePick; highlight: THREE.Object3D } | { kind: 'region'; point: Vec2; highlight: THREE.Object3D }
@@ -300,11 +315,13 @@ export class SceneView {
   /** Component new sketches go into: origin planes and face picks are in its coordinates */
   private activeComponent = 0
   private modifier: ModifierPicking | undefined
-  private jointPicking = false
+  private jointPicking: false | 'any' | 'circles' = false
   private readonly handleGroup = new THREE.Group()
   private handle: DragHandle | undefined
   private handleDrag: { offset: number } | undefined
   private readonly jointMarkers = new THREE.Group()
+  /** Screws, washers and nuts of the screwed joints */
+  private readonly fasteners = new THREE.Group()
   /** Gizmo moving a whole component; it sits on a stand-in at the centre of the component's bodies */
   private readonly mover: TransformControls
   private readonly moverProxy = new THREE.Object3D()
@@ -363,7 +380,7 @@ export class SceneView {
     this.ortho.add(sun.clone())
     this.scene.add(this.camera, this.ortho)
 
-    this.scene.add(this.grid, this.bodies, this.regions, this.sketches, this.pickers, this.ghost, this.picked, this.hover, this.analysis, this.constructionPlanes, this.jointMarkers, this.handleGroup, this.axes)
+    this.scene.add(this.grid, this.bodies, this.regions, this.sketches, this.pickers, this.ghost, this.picked, this.hover, this.analysis, this.constructionPlanes, this.jointMarkers, this.fasteners, this.handleGroup, this.axes)
     this.scene.add(this.moverProxy, this.mover.getHelper())
     this.buildGrid()
 
@@ -395,7 +412,7 @@ export class SceneView {
     this.input.removeEventListener('pointerup', this.onPointerUp)
     this.input.removeEventListener('wheel', this.onWheel)
     this.input.removeEventListener('contextmenu', this.onContextMenu)
-    for (const group of [this.bodies, this.sketches, this.regions, this.pickers, this.ghost, this.picked, this.hover, this.analysis, this.constructionPlanes, this.jointMarkers, this.grid]) clearGroup(group)
+    for (const group of [this.bodies, this.sketches, this.regions, this.pickers, this.ghost, this.picked, this.hover, this.analysis, this.constructionPlanes, this.jointMarkers, this.fasteners, this.grid]) clearGroup(group)
     this.renderer.dispose()
     this.renderer.domElement.remove()
   }
@@ -628,9 +645,37 @@ export class SceneView {
   // ------------------------------------------------------------ joints
 
   /** Offers circular and straight edges and flat faces as joint origins */
-  setJointPicking(on: boolean): void {
-    this.jointPicking = on
+  setJointPicking(on: boolean | 'circles'): void {
+    this.jointPicking = on === true ? 'any' : on
     clearGroup(this.hover)
+    this.requestRender()
+  }
+
+  /** Shows the standard parts of the screws, in world coordinates; replaces the ones shown */
+  setFasteners(screws: ShownScrew[]): void {
+    clearGroup(this.fasteners)
+    for (const screw of screws) {
+      const y = v3(screw.direction).normalize()
+      const x = new THREE.Vector3(1, 0, 0).cross(y)
+      if (x.lengthSq() < 1e-6) x.set(0, 0, 1).cross(y)
+      x.normalize()
+      const z = x.clone().cross(y)
+      const frame = new THREE.Matrix4().makeBasis(x, y, z).setPosition(v3(screw.seat))
+      const color = screw.state === 'selected' ? this.colors.highlight : screw.state === 'problem' ? '#ef4444' : '#9ca3af'
+      for (const solid of screw.solids) {
+        // A profile turned about the axis: six steps make the hexagon
+        const r1 = solid.radius
+        const r2 = solid.radiusTo ?? solid.radius
+        const inner = solid.inner ?? 0
+        const profile = [new THREE.Vector2(inner, solid.from), new THREE.Vector2(r1, solid.from), new THREE.Vector2(r2, solid.to), new THREE.Vector2(inner, solid.to), new THREE.Vector2(inner, solid.from)]
+        const geometry = new THREE.LatheGeometry(profile, solid.shape === 'hex' ? 6 : 32)
+        geometry.computeVertexNormals()
+        const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color, metalness: 0.55, roughness: 0.35, side: THREE.DoubleSide, flatShading: solid.shape === 'hex' }))
+        mesh.matrixAutoUpdate = false
+        mesh.matrix.copy(frame)
+        this.fasteners.add(mesh)
+      }
+    }
     this.requestRender()
   }
 
@@ -672,12 +717,17 @@ export class SceneView {
       const circle = circleOf(body.edges[edge.edge]!.points)
       if (circle) {
         const x = circle.start.clone().sub(circle.center).normalize()
-        const pick: JointOriginPick = { component: body.data.component, kind: 'CircularEdge', origin: circle.center.toArray() as Vec3, z: circle.normal.toArray() as Vec3, x: x.toArray() as Vec3 }
+        // The axis points out of the flat face the circle lies on, so two hole edges can face each other
+        const flat = body.data.faces.find(
+          (f) => f.plane && Math.abs(v3(f.plane.normal).dot(circle.normal)) > 0.999 && Math.abs(circle.center.clone().sub(v3(f.plane.origin)).dot(v3(f.plane.normal))) < 1e-3,
+        )
+        const axis = flat?.plane ? v3(flat.plane.normal).normalize() : circle.normal
+        const pick: JointOriginPick = { component: body.data.component, kind: 'CircularEdge', radius: circle.radius, origin: circle.center.toArray() as Vec3, z: axis.toArray() as Vec3, x: x.toArray() as Vec3 }
         const highlight = new THREE.Group()
         highlight.add(this.thickLine(body.edges[edge.edge]!.points, this.colors.highlight), this.triad(pick.origin, pick.z, pick.x, 8))
         return { pick, highlight: this.place(highlight, pick.component) }
       }
-      const straight = straightOf(body.edges[edge.edge]!.points)
+      const straight = this.jointPicking === 'circles' ? undefined : straightOf(body.edges[edge.edge]!.points)
       if (straight) {
         // x along the edge, z the normal of the face it was picked from (else any square to the edge)
         const x = straight.end.clone().sub(straight.start).normalize()
@@ -693,7 +743,7 @@ export class SceneView {
         return { pick, highlight: this.place(highlight, pick.component) }
       }
     }
-    const face = this.faceAt(event)
+    const face = this.jointPicking === 'circles' ? undefined : this.faceAt(event)
     if (!face) return undefined
     const body = this.pickBodies[face.body]!
     const plane = body.data.faces[face.face]?.plane
@@ -785,7 +835,7 @@ export class SceneView {
     }
     const geometry = new THREE.BufferGeometry()
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-    const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthTest: false, side: THREE.DoubleSide }))
+    const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, ...ON_SURFACE }))
     mesh.renderOrder = 7
     return mesh
   }
@@ -987,7 +1037,7 @@ export class SceneView {
       })
     }
     for (const { mesh, data } of this.bodyMeshes) {
-      this.pickTargets.push({ object: mesh, resolve: (hit) => this.resolveFace(data, hit) })
+      this.pickTargets.push({ object: mesh, resolve: (hit) => this.resolveFace(data, hit), opaque: true })
     }
     for (const quad of this.constructionPlanes.children) {
       if (!(quad instanceof THREE.Mesh)) continue
@@ -1055,7 +1105,7 @@ export class SceneView {
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
     const highlight = new THREE.Mesh(
       geometry,
-      new THREE.MeshBasicMaterial({ color: this.colors.highlight, transparent: true, opacity: 0.6, depthTest: false, side: THREE.DoubleSide }),
+      new THREE.MeshBasicMaterial({ color: this.colors.highlight, transparent: true, opacity: 0.6, side: THREE.DoubleSide, ...ON_SURFACE }),
     )
     highlight.renderOrder = 7
     return { kind: 'plane', pick, highlight: this.place(highlight, data.component) }
@@ -1282,6 +1332,8 @@ export class SceneView {
       const target = targets.find((t) => t.object === hit.object)
       const result = target?.resolve(hit)
       if (result) return result
+      // A curved face hides the flat ones behind it
+      if (target?.opaque) return undefined
     }
     return undefined
   }

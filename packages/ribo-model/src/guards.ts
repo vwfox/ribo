@@ -10,6 +10,7 @@ import type {
   Chamfer,
   Component,
   Joint,
+  Fastening,
   ConstructionPlane,
   Dimension,
   EdgeFeature,
@@ -55,6 +56,7 @@ export const isShell = (o: Maybe): o is Shell => isKindOf(o, L().SHELL)
 export const isHole = (o: Maybe): o is Hole => isKindOf(o, L().HOLE)
 export const isComponent = (o: Maybe): o is Component => isKindOf(o, L().COMPONENT)
 export const isJoint = (o: Maybe): o is Joint => isKindOf(o, L().JOINT)
+export const isFastening = (o: Maybe): o is Fastening => isKindOf(o, L().FASTENING)
 export const isConstructionPlane = (o: Maybe): o is ConstructionPlane => isKindOf(o, L().CONSTRUCTION_PLANE)
 /** Features that modify existing bodies by picked edges or faces */
 export const isBodyModifier = (o: Maybe): o is EdgeFeature | Shell => isEdgeFeature(o) || isShell(o)

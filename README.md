@@ -18,6 +18,10 @@ npm run preview    # gebaute Version lokal ansehen
 docker build -t ribo . && docker run -p 8080:80 ribo
 ```
 
+Beim Start zeigt ein Startbildschirm (drehender ribo-Würfel, Fortschritt, die Module einzeln) was gerade lädt. Fehler bleiben dort stehen – mit *Neu laden*, *Trotzdem fortfahren*, *Gespeicherten Stand verwerfen* und *Fehler kopieren*. „Failed to fetch dynamically imported module“ heißt fast immer: Der Dev-Server hat gerade neu übersetzt (z. B. nach einer Änderung an `vite.config.ts`) – neu laden, sonst den Dev-Server neu starten.
+
+Hat der automatisch gespeicherte Stand den letzten Start verhindert (Absturz oder Hänger beim Öffnen), wird er beim nächsten Start nicht wieder geöffnet, sondern beiseitegelegt; *Datei → Verworfenen Stand herunterladen* sichert ihn.
+
 ## Bedienung (Stand Schritt 4)
 
 Der Ablauf orientiert sich an Fusion 360:
@@ -75,6 +79,13 @@ Der Ablauf orientiert sich an Fusion 360:
 - In den Eigenschaften lassen sich Bezug 1 oder 2 einzeln neu wählen, die Bezüge tauschen (das andere Bauteil bewegt sich) und eine Ausrichtung *in die Lage übernehmen* (Position ins Bauteil schreiben, Beziehung entfernen).
 - Das andockbare Panel **Beziehungen** zeigt je Bauteil, ob es *fixiert*, *bestimmt*, *beweglich*, teilweise bestimmt (*n frei*: verbleibende Freiheitsgrade) oder *frei* ist, und darunter seine Beziehungen (Bezugsarten, Gegenbauteil, aufeinander/bündig, Abstand); fehlende Bezüge und Probleme sind rot markiert, Unterdrücken und Löschen direkt dort.
 - **Bauteil bewegen** (M): Griffe im Ansichtsfenster verschieben oder drehen das ausgewählte (sonst das aktive) Bauteil – ein Undo-Schritt je Zug. In Ausrichtungen gleitet es nur in deren freien Richtungen; Bauteile an Gelenken bewegt man über deren Werte.
+- **Verschrauben** (B): je Schraube die beiden Bohrungskanten an den Berührflächen anklicken – erst im Bauteil auf der Kopfseite, dann auf der Mutterseite; beliebig viele Schrauben in einer Verschraubung. Die Bohrungsachsen werden gefluchtet – nachgiebig: Eine Schraube platziert nur, was sonst nichts hält, und verschiebt keine Bauteile, die andere Beziehungen festlegen; passen die Bohrungen dann nicht, meldet sie den Versatz. Der *Abstand* zwischen den Bohrungskanten ist leer, die Teile bleiben also auf Abstand (z. B. mit Hohlraum dazwischen); 0 zieht sie zusammen.
+  - Schraube (ISO 4762, 4017, 7380, 10642), Größe M2–M8, Scheiben ISO 7089 unter Kopf und Mutter, Mutter ISO 4032, 4035, 10511 oder keine (Gewinde im Bauteil oder Einschmelzmutter).
+  - Die Klemmlänge misst ribo entlang der Bohrung an den Körpern und wählt die passende Normlänge (Gewindeüberstand 2 Gänge; ohne Mutter die längste, die im Gegenstück bleibt und 1,5–2 × d fasst). Geprüft werden zu kurz, zu lang, Bohrung gegen Durchgangsloch nach ISO 273 und sich durchdringende Teile.
+  - Die Bohrungsachse zeigt aus der Fläche heraus, auf der die Kante liegt; die beiden Berührflächen liegen dadurch aufeinander. Liegt ein Bauteil falsch herum, dreht *Umkehren* es um.
+  - Schraube, Scheiben und Mutter erscheinen als vereinfachte Körper in der Baugruppe (grau, rot bei Problemen, hervorgehoben wenn ausgewählt) – nicht im Export, nicht im Druck. Geprüft wird, ob Kopf, Scheiben und Mutter Platz haben (Senkung zu klein oder zu flach, Mutter stößt an).
+  - Das Anzugsmoment steht als Normwert für 8.8 auf Stahl dabei – in Druckteilen nur handfest anziehen.
+  - Das Panel **Stückliste** zählt Schrauben, Muttern und Scheiben aller Verschraubungen und exportiert sie als CSV.
 - Bauteile ohne Beziehung liegen an ihrer eigenen Position und Drehung; *Fixiert* hält ein Bauteil fest. Exportiert wird in der zusammengebauten Lage.
 
 **Fenster**: Browser, Zeitleiste, Eigenschaften und 3D-Druck lassen sich am Titel in einen anderen Bereich (links, rechts, unten) ziehen, mit ⧉ herauslösen und als Fenster frei verschieben; am Rand rasten sie wieder ein. Liegen mehrere Panels übereinander, verteilt der Trenner dazwischen die Höhe. „Fensteranordnung zurücksetzen“ stellt den Anfang wieder her.
@@ -99,6 +110,8 @@ Der Aufbau folgt gene. Eine dünne Vite-App (`src/main.ts`) registriert die Shar
 | `ribo-sketcher` | Skizzenmodus: Werkzeuge, Abhängigkeiten, Bemaßungen, SVG-Overlay, Skizzenpalette |
 | `ribo-timeline` | Objektbrowser (Design, Bauteile, Skizzen, Features, Körper), Beziehungen, Zeitleiste mit Marker, Erstell-Aktionen, Undo/Redo |
 | `ribo-properties` | Eigenschaften des gewählten Objekts |
+| `ribo-fasteners` | Verschrauben (Aktion), Stückliste mit CSV-Export |
+| `ribo-parts` | Bibliothek: Normteil-Katalog (ISO-Schrauben, Muttern, Scheiben, ISO 273), Klemmlänge per Strahl durch die Körper, Schraubenwahl |
 | `ribo-print` | Druck-Checks (Bett, Überhänge, Wandstärke per BVH-Raycasting), Materialabschätzung, Export |
 | `ribo-io` | Neu, Öffnen, Speichern, Autosave, Export (3MF, STL, STEP) |
 

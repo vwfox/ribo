@@ -29,6 +29,7 @@ export class JointOriginImpl extends BasicEObject implements JointOrigin {
   static readonly X_X: number = 8;
   static readonly X_Y: number = 9;
   static readonly X_Z: number = 10;
+  static readonly RADIUS: number = 11;
 
   // Private fields
   private _component?: Component;
@@ -42,6 +43,7 @@ export class JointOriginImpl extends BasicEObject implements JointOrigin {
   private _xX: number = 1;
   private _xY: number = 0;
   private _xZ: number = 0;
+  private _radius: number = 0;
 
   /**
    * Returns the EClass of this object
@@ -315,6 +317,30 @@ export class JointOriginImpl extends BasicEObject implements JointOrigin {
     }
   }
 
+  get radius(): number {
+    return this._radius!;
+  }
+
+  set radius(value: number) {
+    const oldValue = this._radius;
+    this._radius = value;
+    if (this.eDeliver()) {
+      this.eNotify({
+        getNotifier: () => this,
+        getEventType: () => 1, // SET
+        getFeature: () => this.eClass().getEStructuralFeature(JointOriginImpl.RADIUS),
+        getOldValue: () => oldValue,
+        getNewValue: () => value,
+        getPosition: () => -1,
+        wasSet: () => true,
+        isTouch: () => false,
+        isReset: () => false,
+        getFeatureID: () => JointOriginImpl.RADIUS,
+        merge: () => false
+      });
+    }
+  }
+
   // Reflective API
 
   /**
@@ -345,6 +371,8 @@ export class JointOriginImpl extends BasicEObject implements JointOrigin {
         return this.xY;
       case JointOriginImpl.X_Z:
         return this.xZ;
+      case JointOriginImpl.RADIUS:
+        return this.radius;
       default:
         return super.eGet(feature);
     }
@@ -400,6 +428,10 @@ export class JointOriginImpl extends BasicEObject implements JointOrigin {
         this.xZ = newValue as number;
         super.eSet(feature, newValue);
         break;
+      case JointOriginImpl.RADIUS:
+        this.radius = newValue as number;
+        super.eSet(feature, newValue);
+        break;
       default:
         super.eSet(feature, newValue);
     }
@@ -433,6 +465,8 @@ export class JointOriginImpl extends BasicEObject implements JointOrigin {
         return this._xY !== 0;
       case JointOriginImpl.X_Z:
         return this._xZ !== 0;
+      case JointOriginImpl.RADIUS:
+        return this._radius !== 0;
       default:
         return super.eIsSet(feature);
     }
@@ -476,6 +510,9 @@ export class JointOriginImpl extends BasicEObject implements JointOrigin {
         return;
       case JointOriginImpl.X_Z:
         this._xZ = 0;
+        return;
+      case JointOriginImpl.RADIUS:
+        this._radius = 0;
         return;
       default:
         super.eUnset(feature);

@@ -4,8 +4,9 @@ import Button from 'primevue/button'
 import SelectButton from 'primevue/selectbutton'
 import type { BodyMesh, DocumentService, Vec3 } from 'ribo-contracts'
 import { IDENTITY, applyDirection, applyPoint, decompose, frameToWorld } from 'ribo-geometry'
-import { isBodyModifier, isEdgeFeature, isExtrude, isHole, isJoint, isFillet, isProfileFeature, isShell, isSketch, sketchOf, type EdgeFeature, type ProfileFeature, type Shell } from 'ribo-model'
-import { SceneView, type SceneColors, type ViewDirection } from './SceneView'
+import { isBodyModifier, isEdgeFeature, isExtrude, isFastening, isHole, isJoint, isFillet, isProfileFeature, isShell, isSketch, sketchOf, type EdgeFeature, type ProfileFeature, type Shell } from 'ribo-model'
+import { reportFastening, viewOf } from 'ribo-parts'
+import { SceneView, type SceneColors, type ShownScrew, type ViewDirection } from './SceneView'
 import type { ViewportController } from './ViewportController'
 
 const props = defineProps<{ document: DocumentService; controller: ViewportController }>()
@@ -69,6 +70,12 @@ const modifierFeature = computed<EdgeFeature | Shell | undefined>(() => {
   return !sketchMode.value && isBodyModifier(selected) ? selected : undefined
 })
 
+/** The screwed joint whose holes are being picked: as long as it is selected */
+const fasteningFeature = computed(() => {
+  const selected = props.document.selection.value
+  return !sketchMode.value && isFastening(selected) ? selected : undefined
+})
+
 /** The joint whose origins are being picked */
 const jointFeature = computed(() => {
   void props.document.revision.value
@@ -79,6 +86,13 @@ const jointFeature = computed(() => {
 const modifierBanner = computed(() => {
   if (dragDistance.value !== undefined) return `Abstand: ${dragDistance.value} mm`
   const joint = jointFeature.value
+  const fastening = fasteningFeature.value
+  if (fastening) {
+    const last = fastening.holes.toArray().at(-1)
+    return last && !last.nut
+      ? 'Dieselbe Bohrung im Bauteil auf der Mutterseite anklicken – Kante an der Berührfläche'
+      : 'Bohrung im Bauteil auf der Kopfseite anklicken – Kante an der Fläche, die das andere Bauteil berührt · weitere Schrauben oder OK'
+  }
   if (joint) return joint.first ? 'Bezug 2 am Bauteil anklicken, das sich bewegt: Fläche, Kreiskante oder Kante' : 'Bezug 1 am stehenden Bauteil anklicken: Fläche, Kreiskante oder Kante'
   const feature = modifierFeature.value
   if (!feature) return undefined
@@ -100,7 +114,7 @@ function updateBodies() {
   // The result is shown, also while editing a fillet; its edges are picked on the bodies before it
   scene.setBodies(shownBodies(props.document.result.value))
   scene.setPickBodies(modifierFeature.value ? shownBodies(props.document.inputResult.value) : undefined)
-  scene.setJointPicking(jointFeature.value !== undefined)
+  scene.setJointPicking(fasteningFeature.value ? 'circles' : jointFeature.value !== undefined)
   updateJointMarkers()
   if (!hadBodies && scene.hasBodies() && !sketchMode.value) scene.view('iso')
   updateModifier()
@@ -141,20 +155,49 @@ function updateSketches() {
   scene.setSketches(plan, visible, isSketch(document.selection.value) ? highlighted : undefined)
 }
 
+/** Screws, washers and nuts of the screwed joints whose parts are shown; none while sketching */
+function updateFasteners() {
+  if (!scene) return
+  const document = props.document
+  const screws: ShownScrew[] = []
+  if (!sketchMode.value) {
+    const design = document.design.value
+    const shown = (component: { component?: unknown } | undefined) => {
+      const index = document.componentIndexOf((component?.component ?? undefined) as never)
+      return index === 0 ? design.visible !== false : document.componentAt(index)?.visible !== false
+    }
+    const view = viewOf(document)
+    for (const fastening of design.features.toArray().filter(isFastening)) {
+      if (fastening.suppressed) continue
+      const selected = document.selection.value === fastening
+      for (const report of reportFastening(fastening, view)) {
+        const hole = fastening.holes.toArray()[report.hole]
+        if (!report.stack || !report.solids?.length || !(shown(hole?.head) || shown(hole?.nut))) continue
+        screws.push({
+          seat: report.stack.seat,
+          direction: report.stack.direction,
+          solids: report.solids,
+          state: selected ? 'selected' : report.problems.length ? 'problem' : 'normal',
+        })
+      }
+    }
+  }
+  scene.setFasteners(screws)
+}
+
 function updateJointMarkers() {
   if (!scene) return
   const selected = props.document.selection.value
   const markers = []
-  if (isJoint(selected)) {
-    for (const origin of [selected.first, selected.second]) {
-      if (!origin) continue
-      markers.push({
-        origin: [origin.originX, origin.originY, origin.originZ] as Vec3,
-        z: [origin.zX, origin.zY, origin.zZ] as Vec3,
-        x: [origin.xX, origin.xY, origin.xZ] as Vec3,
-        component: props.document.componentIndexOf(origin.component),
-      })
-    }
+  const origins = isJoint(selected) ? [selected.first, selected.second] : isFastening(selected) ? selected.holes.toArray().flatMap((h) => [h.head, h.nut]) : []
+  for (const origin of origins) {
+    if (!origin) continue
+    markers.push({
+      origin: [origin.originX, origin.originY, origin.originZ] as Vec3,
+      z: [origin.zX, origin.zY, origin.zZ] as Vec3,
+      x: [origin.xX, origin.xY, origin.xZ] as Vec3,
+      component: props.document.componentIndexOf(origin.component),
+    })
   }
   scene.setJointMarkers(markers)
 }
@@ -297,7 +340,7 @@ function updateMoving() {
 }
 
 /** A feature whose step is open in the viewport: picking profiles, edges or faces */
-const openStep = computed(() => profileFeature.value ?? modifierFeature.value ?? jointFeature.value ?? movingComponent.value)
+const openStep = computed(() => profileFeature.value ?? modifierFeature.value ?? jointFeature.value ?? fasteningFeature.value ?? movingComponent.value)
 
 /** Closes the open step; its changes are already applied */
 function applyStep() {
@@ -335,6 +378,11 @@ onMounted(() => {
     onHandleDrag,
     onComponentMove,
     onJointOrigin: (pick) => {
+      const fastening = fasteningFeature.value
+      if (fastening) {
+        props.document.addFastenerHole(fastening, pick.component, pick.origin, pick.z, pick.x, pick.radius ?? 0)
+        return
+      }
       const joint = jointFeature.value
       if (joint) props.document.setJointOrigin(joint, joint.first ? 'second' : 'first', pick.component, pick.origin, pick.z, pick.x, pick.kind)
     },
@@ -346,11 +394,16 @@ onMounted(() => {
   window.addEventListener('keydown', onKeyDown)
 
   watch(
-    [() => props.document.result.value, () => props.document.inputResult.value, () => props.document.placements.value, () => props.document.revision.value, modifierFeature, jointFeature],
+    [() => props.document.result.value, () => props.document.inputResult.value, () => props.document.placements.value, () => props.document.revision.value, modifierFeature, jointFeature, fasteningFeature],
     updateBodies,
     { immediate: true },
   )
   watch([movingComponent, movingHeld, () => props.controller.moveMode.value, () => props.document.result.value], updateMoving, { immediate: true })
+  watch(
+    [() => props.document.result.value, () => props.document.placements.value, () => props.document.revision.value, () => props.document.selection.value, sketchMode],
+    updateFasteners,
+    { immediate: true },
+  )
   watch(
     () => props.document.revision.value,
     () => {

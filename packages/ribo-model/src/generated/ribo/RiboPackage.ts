@@ -172,6 +172,20 @@ export class RiboPackage extends BasicEPackage {
     JOINT_ORIGIN__X_X: null as unknown as EAttribute | EReference,
     JOINT_ORIGIN__X_Y: null as unknown as EAttribute | EReference,
     JOINT_ORIGIN__X_Z: null as unknown as EAttribute | EReference,
+    JOINT_ORIGIN__RADIUS: null as unknown as EAttribute | EReference,
+    FASTENING: null as unknown as EClass,
+    FASTENING__HOLES: null as unknown as EAttribute | EReference,
+    FASTENING__SCREW: null as unknown as EAttribute | EReference,
+    FASTENING__SIZE: null as unknown as EAttribute | EReference,
+    FASTENING__LENGTH: null as unknown as EAttribute | EReference,
+    FASTENING__HEAD_WASHER: null as unknown as EAttribute | EReference,
+    FASTENING__NUT: null as unknown as EAttribute | EReference,
+    FASTENING__NUT_WASHER: null as unknown as EAttribute | EReference,
+    FASTENING__OFFSET: null as unknown as EAttribute | EReference,
+    FASTENING__FLIP: null as unknown as EAttribute | EReference,
+    FASTENER_HOLE: null as unknown as EClass,
+    FASTENER_HOLE__HEAD: null as unknown as EAttribute | EReference,
+    FASTENER_HOLE__NUT: null as unknown as EAttribute | EReference,
   };
 
   private constructor() {
@@ -1358,6 +1372,123 @@ export class RiboPackage extends BasicEPackage {
     jointOriginClass.getEStructuralFeatures().push(jointOrigin_xZ);
     RiboPackage.Literals.JOINT_ORIGIN__X_Z = jointOrigin_xZ;
 
+    // Create radius feature
+    const jointOrigin_radius = new BasicEAttribute();
+    jointOrigin_radius.setName('radius');
+    jointOrigin_radius.setLowerBound(1);
+    jointOrigin_radius.setUpperBound(1);
+    jointOriginClass.getEStructuralFeatures().push(jointOrigin_radius);
+    RiboPackage.Literals.JOINT_ORIGIN__RADIUS = jointOrigin_radius;
+
+    // Create Fastening class
+    const fasteningClass = new BasicEClass();
+    fasteningClass.setName('Fastening');
+    fasteningClass.setAbstract(false);
+    fasteningClass.setInterface(false);
+    this.getEClassifiers().push(fasteningClass);
+    fasteningClass.setEPackage(this);
+    RiboPackage.Literals.FASTENING = fasteningClass;
+
+    // Create holes feature
+    const fastening_holes = new BasicEReference();
+    fastening_holes.setContainment(true);
+    fastening_holes.setName('holes');
+    fastening_holes.setLowerBound(0);
+    fastening_holes.setUpperBound(-1);
+    fasteningClass.getEStructuralFeatures().push(fastening_holes);
+    RiboPackage.Literals.FASTENING__HOLES = fastening_holes;
+
+    // Create screw feature
+    const fastening_screw = new BasicEAttribute();
+    fastening_screw.setName('screw');
+    fastening_screw.setLowerBound(1);
+    fastening_screw.setUpperBound(1);
+    fasteningClass.getEStructuralFeatures().push(fastening_screw);
+    RiboPackage.Literals.FASTENING__SCREW = fastening_screw;
+
+    // Create size feature
+    const fastening_size = new BasicEAttribute();
+    fastening_size.setName('size');
+    fastening_size.setLowerBound(1);
+    fastening_size.setUpperBound(1);
+    fasteningClass.getEStructuralFeatures().push(fastening_size);
+    RiboPackage.Literals.FASTENING__SIZE = fastening_size;
+
+    // Create length feature
+    const fastening_length = new BasicEAttribute();
+    fastening_length.setName('length');
+    fastening_length.setLowerBound(1);
+    fastening_length.setUpperBound(1);
+    fasteningClass.getEStructuralFeatures().push(fastening_length);
+    RiboPackage.Literals.FASTENING__LENGTH = fastening_length;
+
+    // Create headWasher feature
+    const fastening_headWasher = new BasicEAttribute();
+    fastening_headWasher.setName('headWasher');
+    fastening_headWasher.setLowerBound(1);
+    fastening_headWasher.setUpperBound(1);
+    fasteningClass.getEStructuralFeatures().push(fastening_headWasher);
+    RiboPackage.Literals.FASTENING__HEAD_WASHER = fastening_headWasher;
+
+    // Create nut feature
+    const fastening_nut = new BasicEAttribute();
+    fastening_nut.setName('nut');
+    fastening_nut.setLowerBound(1);
+    fastening_nut.setUpperBound(1);
+    fasteningClass.getEStructuralFeatures().push(fastening_nut);
+    RiboPackage.Literals.FASTENING__NUT = fastening_nut;
+
+    // Create nutWasher feature
+    const fastening_nutWasher = new BasicEAttribute();
+    fastening_nutWasher.setName('nutWasher');
+    fastening_nutWasher.setLowerBound(1);
+    fastening_nutWasher.setUpperBound(1);
+    fasteningClass.getEStructuralFeatures().push(fastening_nutWasher);
+    RiboPackage.Literals.FASTENING__NUT_WASHER = fastening_nutWasher;
+
+    // Create offset feature
+    const fastening_offset = new BasicEAttribute();
+    fastening_offset.setName('offset');
+    fastening_offset.setLowerBound(1);
+    fastening_offset.setUpperBound(1);
+    fasteningClass.getEStructuralFeatures().push(fastening_offset);
+    RiboPackage.Literals.FASTENING__OFFSET = fastening_offset;
+
+    // Create flip feature
+    const fastening_flip = new BasicEAttribute();
+    fastening_flip.setName('flip');
+    fastening_flip.setLowerBound(1);
+    fastening_flip.setUpperBound(1);
+    fasteningClass.getEStructuralFeatures().push(fastening_flip);
+    RiboPackage.Literals.FASTENING__FLIP = fastening_flip;
+
+    // Create FastenerHole class
+    const fastenerHoleClass = new BasicEClass();
+    fastenerHoleClass.setName('FastenerHole');
+    fastenerHoleClass.setAbstract(false);
+    fastenerHoleClass.setInterface(false);
+    this.getEClassifiers().push(fastenerHoleClass);
+    fastenerHoleClass.setEPackage(this);
+    RiboPackage.Literals.FASTENER_HOLE = fastenerHoleClass;
+
+    // Create head feature
+    const fastenerHole_head = new BasicEReference();
+    fastenerHole_head.setContainment(true);
+    fastenerHole_head.setName('head');
+    fastenerHole_head.setLowerBound(0);
+    fastenerHole_head.setUpperBound(1);
+    fastenerHoleClass.getEStructuralFeatures().push(fastenerHole_head);
+    RiboPackage.Literals.FASTENER_HOLE__HEAD = fastenerHole_head;
+
+    // Create nut feature
+    const fastenerHole_nut = new BasicEReference();
+    fastenerHole_nut.setContainment(true);
+    fastenerHole_nut.setName('nut');
+    fastenerHole_nut.setLowerBound(0);
+    fastenerHole_nut.setUpperBound(1);
+    fastenerHoleClass.getEStructuralFeatures().push(fastenerHole_nut);
+    RiboPackage.Literals.FASTENER_HOLE__NUT = fastenerHole_nut;
+
 
     // ============================================
     // Set ESuperTypes (must be done after all classes are created)
@@ -1378,6 +1509,7 @@ export class RiboPackage extends BasicEPackage {
     (RiboPackage.Literals.HOLE as BasicEClass).getESuperTypes().push(RiboPackage.Literals.FEATURE);
     (RiboPackage.Literals.CONSTRUCTION_PLANE as BasicEClass).getESuperTypes().push(RiboPackage.Literals.FEATURE);
     (RiboPackage.Literals.JOINT as BasicEClass).getESuperTypes().push(RiboPackage.Literals.FEATURE);
+    (RiboPackage.Literals.FASTENING as BasicEClass).getESuperTypes().push(RiboPackage.Literals.FEATURE);
 
     // ============================================
     // Set ETypes for all features (must be done after all classes are created).
@@ -1485,6 +1617,18 @@ export class RiboPackage extends BasicEPackage {
     (RiboPackage.Literals.JOINT_ORIGIN__X_X as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
     (RiboPackage.Literals.JOINT_ORIGIN__X_Y as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
     (RiboPackage.Literals.JOINT_ORIGIN__X_Z as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
+    (RiboPackage.Literals.JOINT_ORIGIN__RADIUS as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EDouble')!);
+    (RiboPackage.Literals.FASTENING__HOLES as BasicEReference).setEType(RiboPackage.Literals.FASTENER_HOLE);
+    (RiboPackage.Literals.FASTENING__SCREW as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.FASTENING__SIZE as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.FASTENING__LENGTH as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.FASTENING__HEAD_WASHER as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EBoolean')!);
+    (RiboPackage.Literals.FASTENING__NUT as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.FASTENING__NUT_WASHER as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EBoolean')!);
+    (RiboPackage.Literals.FASTENING__OFFSET as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
+    (RiboPackage.Literals.FASTENING__FLIP as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EBoolean')!);
+    (RiboPackage.Literals.FASTENER_HOLE__HEAD as BasicEReference).setEType(RiboPackage.Literals.JOINT_ORIGIN);
+    (RiboPackage.Literals.FASTENER_HOLE__NUT as BasicEReference).setEType(RiboPackage.Literals.JOINT_ORIGIN);
 
     // ============================================
     // Register XML name mappings from ExtendedMetaData annotations

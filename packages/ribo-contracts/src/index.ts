@@ -17,6 +17,7 @@ import type {
   Feature,
   Hole,
   Joint,
+  Fastening,
   Shell,
   Parameter,
   ProfileFeature,
@@ -155,7 +156,11 @@ export interface DocumentService {
   /** Degrees of freedom alignments leave a component, by component index; undefined where no alignment places it */
   readonly freedom: ShallowRef<(number | undefined)[]>
   /** Component index of the side a relation moves: its second reference, unless only the first can move */
-  movedBy(joint: Joint): number
+  movedBy(relation: Joint | Fastening): number
+  /** A screwed joint, holes to be picked in the viewport */
+  addFastening(): Fastening
+  /** Adds a picked hole edge: the nut side of the last screw still missing one, else the head side of a new screw */
+  addFastenerHole(fastening: Fastening, component: number, origin: Vec3, z: Vec3, x: Vec3, radius: number): void
   /** A new component, made the active one */
   addComponent(): ModelComponent
   /** New features go into the active component; undefined is the design itself */

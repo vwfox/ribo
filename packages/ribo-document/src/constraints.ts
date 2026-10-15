@@ -36,9 +36,17 @@ export interface Reference {
 export interface Alignment {
   first: Reference
   second: Reference
-  /** Faces: flush (same direction) instead of facing each other. Edges: running against each other */
+  /** Faces: flush (same direction) instead of facing each other. Edges: running against each other. Sensed circles: turned over */
   flush: boolean
-  offset: number
+  /** Circles whose axes point out of their faces: the faces meet like faces do (a screwed joint's holes) */
+  sensed?: boolean
+  /**
+   * Gives way to the other alignments: it places what nothing else holds,
+   * and only reports where it cannot be met (a screw does not drag parts)
+   */
+  soft?: boolean
+  /** Distance along the normal or axis; undefined for sensed holes that keep theirs */
+  offset?: number
 }
 
 export function referenceOf(origin: JointOrigin, component: number): Reference {
@@ -99,20 +107,25 @@ function residuals(a: Alignment, ma: Matrix, mb: Matrix): number[] {
   switch (kinds) {
     case 'Face-Face':
       // Facing: the normals oppose; flush: they agree
-      return [...add(db, scale(da, a.flush ? -1 : 1)), dot(gap, da) - a.offset]
+      return [...add(db, scale(da, a.flush ? -1 : 1)), dot(gap, da) - (a.offset ?? 0)]
     case 'Edge-Edge':
       return [...sub(db, scale(da, a.flush ? -1 : 1)), ...across(gap, da)]
-    case 'CircularEdge-CircularEdge':
-      return [...cross(da, db), ...across(gap, da), dot(gap, da) - a.offset]
+    case 'CircularEdge-CircularEdge': {
+      // A circle's axis has no sense: the offset counts either way along it
+      const along = dot(gap, da)
+      // Sensed holes without an offset keep whatever distance the rest gives them
+      if (a.sensed) return [...add(db, scale(da, a.flush ? -1 : 1)), ...across(gap, da), ...(a.offset === undefined ? [] : [along - a.offset])]
+      return [...cross(da, db), ...across(gap, da), a.offset ? Math.abs(along) - a.offset : along]
+    }
     case 'Edge-Face': {
       const [plane, point, line] = a.first.kind === 'Face' ? [da, pa, db] : [db, pb, da]
       const other = a.first.kind === 'Face' ? pb : pa
-      return [dot(line, plane), dot(sub(other, point), plane) - a.offset]
+      return [dot(line, plane), dot(sub(other, point), plane) - (a.offset ?? 0)]
     }
     case 'CircularEdge-Face': {
       const [plane, point, axis] = a.first.kind === 'Face' ? [da, pa, db] : [db, pb, da]
       const centre = a.first.kind === 'Face' ? pb : pa
-      return [...cross(axis, plane), dot(sub(centre, point), plane) - a.offset]
+      return [...cross(axis, plane), dot(sub(centre, point), plane) - (a.offset ?? 0)]
     }
     case 'CircularEdge-Edge': {
       const [line, point, centre] = a.first.kind === 'Edge' ? [da, pa, pb] : [db, pb, pa]
@@ -129,6 +142,18 @@ export function alignmentError(a: Alignment, ma: Matrix, mb: Matrix): number {
 }
 
 const TOLERANCE = 1e-4
+/** How much less a soft alignment counts: where it conflicts, the others win by far */
+const SOFT_WEIGHT = 1e-3
+
+/** How far two sensed hole edges are from lining up: axis tilt (degrees), axis offset and distance along it (mm) */
+export function holeMismatch(a: Alignment, ma: Matrix, mb: Matrix): { tilt: number; across: number; along: number } {
+  const pa = applyPoint(ma, a.first.origin)
+  const pb = applyPoint(mb, a.second.origin)
+  const da = unit(applyDirection(ma, a.first.z))
+  const db = unit(applyDirection(mb, a.second.z))
+  const gap = sub(pb, pa)
+  return { tilt: (Math.acos(Math.min(1, Math.abs(dot(da, db)))) * 180) / Math.PI, across: Math.hypot(...across(gap, da)), along: dot(gap, da) }
+}
 const MAX_ITERATIONS = 100
 
 /**
@@ -167,7 +192,13 @@ export function solveAlignments(alignments: Alignment[], free: number[], placeme
       const target = unit(applyDirection(placements[other.component]!, directionOf(other)))
       // Faces face each other unless flush, edges run alike unless flipped, axes are only lines
       const wanted =
-        own.kind === 'Face' ? scale(target, a.flush ? 1 : -1) : own.kind === 'Edge' ? scale(target, a.flush ? -1 : 1) : dot(mine, target) < 0 ? scale(target, -1) : target
+        own.kind === 'Face' || a.sensed
+          ? scale(target, a.flush ? 1 : -1)
+          : own.kind === 'Edge'
+            ? scale(target, a.flush ? -1 : 1)
+            : dot(mine, target) < 0
+              ? scale(target, -1)
+              : target
       const c = applyPoint(starts.get(component)!, own.origin)
       starts.set(component, multiply(translation(c), multiply(rotationVector(turning(mine, wanted)), multiply(translation(scale(c, -1)), starts.get(component)!))))
       pivots.set(component, c)
@@ -175,7 +206,11 @@ export function solveAlignments(alignments: Alignment[], free: number[], placeme
     }
   }
 
-  const residualsAt = (x: number[]) => alignments.flatMap((a) => residuals(a, placementOf(a.first.component, x), placementOf(a.second.component, x)))
+  const residualsAt = (x: number[]) =>
+    alignments.flatMap((a) => {
+      const r = residuals(a, placementOf(a.first.component, x), placementOf(a.second.component, x))
+      return a.soft ? r.map((v) => v * SOFT_WEIGHT) : r
+    })
   // A light pull back to the own placement keeps the free directions where they were; then a pass without it
   let x = new Array<number>(free.length * 6).fill(0)
   x = levenbergMarquardt((v) => [...residualsAt(v), ...v.map((u) => u * 1e-6)], x)

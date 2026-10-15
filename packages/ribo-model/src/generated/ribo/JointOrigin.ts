@@ -25,5 +25,6 @@ export interface JointOrigin extends EObject {
   xX: number;
   xY: number;
   xZ: number;
+  radius: number;
 
 }

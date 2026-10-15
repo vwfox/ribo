@@ -1,0 +1,8 @@
+{
+  "name": "ribo-parts",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "description": "Standard parts (ISO screws, nuts, washers) and the choice of screws for screwed joints. Pure functions on plain data."
+}
