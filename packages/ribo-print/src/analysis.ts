@@ -89,7 +89,8 @@ export function analyse(bodies: BodyMesh[], settings: PrintSettings): PrintRepor
 
     const geometry = new THREE.BufferGeometry()
     geometry.setAttribute('position', new THREE.BufferAttribute(body.vertices, 3))
-    geometry.setIndex(new THREE.BufferAttribute(body.triangles, 1))
+    // A copy: MeshBVH sorts the index in place, and the body's own order is what its face ranges refer to
+    geometry.setIndex(new THREE.BufferAttribute(body.triangles.slice(), 1))
     const bvh = new MeshBVH(geometry)
     const stride = Math.max(1, Math.ceil(count / MAX_THICKNESS_PROBES))
 

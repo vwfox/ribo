@@ -175,11 +175,28 @@ body,
   margin: 0;
 }
 
+/* The theme's type: rem follows its base size, so PrimeVue and the panels are as compact as daanse board */
+html {
+  font-size: var(--text-base, 13px);
+}
+
 body {
-  font-family: 'Inter', system-ui, sans-serif;
-  font-size: 14px;
-  background: var(--p-content-background);
-  color: var(--p-text-color);
+  font-family: var(--font-sans, system-ui, sans-serif);
+  font-size: var(--text-base, 13px);
+  background: var(--color-bg, var(--p-content-background));
+  color: var(--color-fg, var(--p-text-color));
+}
+
+code,
+kbd,
+pre {
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+
+/* Scrollbars in the theme's colours */
+* {
+  scrollbar-color: var(--color-outline) transparent;
+  scrollbar-width: thin;
 }
 
 .ribo-shell {

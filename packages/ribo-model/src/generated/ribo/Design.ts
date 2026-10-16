@@ -20,6 +20,7 @@ export interface Design extends EObject {
   features: EList<Feature>;
   rollback: number;
   visible: boolean;
+  color: string;
   components: EList<Component>;
   activeComponent?: Component;
 

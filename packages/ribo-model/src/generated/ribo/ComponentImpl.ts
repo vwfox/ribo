@@ -19,18 +19,20 @@ export class ComponentImpl extends BasicEObject implements Component {
   static readonly NAME: number = 0;
   static readonly GROUNDED: number = 1;
   static readonly VISIBLE: number = 2;
-  static readonly ROLLBACK: number = 3;
-  static readonly POSITION_X: number = 4;
-  static readonly POSITION_Y: number = 5;
-  static readonly POSITION_Z: number = 6;
-  static readonly ROTATION_X: number = 7;
-  static readonly ROTATION_Y: number = 8;
-  static readonly ROTATION_Z: number = 9;
+  static readonly COLOR: number = 3;
+  static readonly ROLLBACK: number = 4;
+  static readonly POSITION_X: number = 5;
+  static readonly POSITION_Y: number = 6;
+  static readonly POSITION_Z: number = 7;
+  static readonly ROTATION_X: number = 8;
+  static readonly ROTATION_Y: number = 9;
+  static readonly ROTATION_Z: number = 10;
 
   // Private fields
   private _name?: string;
   private _grounded: boolean = false;
   private _visible: boolean = true;
+  private _color: string = "";
   private _rollback: number = -1;
   private _positionX: string = "0";
   private _positionY: string = "0";
@@ -114,6 +116,30 @@ export class ComponentImpl extends BasicEObject implements Component {
         isTouch: () => false,
         isReset: () => false,
         getFeatureID: () => ComponentImpl.VISIBLE,
+        merge: () => false
+      });
+    }
+  }
+
+  get color(): string {
+    return this._color!;
+  }
+
+  set color(value: string) {
+    const oldValue = this._color;
+    this._color = value;
+    if (this.eDeliver()) {
+      this.eNotify({
+        getNotifier: () => this,
+        getEventType: () => 1, // SET
+        getFeature: () => this.eClass().getEStructuralFeature(ComponentImpl.COLOR),
+        getOldValue: () => oldValue,
+        getNewValue: () => value,
+        getPosition: () => -1,
+        wasSet: () => true,
+        isTouch: () => false,
+        isReset: () => false,
+        getFeatureID: () => ComponentImpl.COLOR,
         merge: () => false
       });
     }
@@ -301,6 +327,8 @@ export class ComponentImpl extends BasicEObject implements Component {
         return this.grounded;
       case ComponentImpl.VISIBLE:
         return this.visible;
+      case ComponentImpl.COLOR:
+        return this.color;
       case ComponentImpl.ROLLBACK:
         return this.rollback;
       case ComponentImpl.POSITION_X:
@@ -336,6 +364,10 @@ export class ComponentImpl extends BasicEObject implements Component {
         break;
       case ComponentImpl.VISIBLE:
         this.visible = newValue as boolean;
+        super.eSet(feature, newValue);
+        break;
+      case ComponentImpl.COLOR:
+        this.color = newValue as string;
         super.eSet(feature, newValue);
         break;
       case ComponentImpl.ROLLBACK:
@@ -383,6 +415,8 @@ export class ComponentImpl extends BasicEObject implements Component {
         return this._grounded !== false;
       case ComponentImpl.VISIBLE:
         return this._visible !== true;
+      case ComponentImpl.COLOR:
+        return this._color !== "";
       case ComponentImpl.ROLLBACK:
         return this._rollback !== -1;
       case ComponentImpl.POSITION_X:
@@ -416,6 +450,9 @@ export class ComponentImpl extends BasicEObject implements Component {
         return;
       case ComponentImpl.VISIBLE:
         this._visible = true;
+        return;
+      case ComponentImpl.COLOR:
+        this._color = "";
         return;
       case ComponentImpl.ROLLBACK:
         this._rollback = -1;

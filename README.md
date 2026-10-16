@@ -67,7 +67,7 @@ Der Ablauf orientiert sich an Fusion 360:
 16. **Als 3MF exportieren** (Strg+E) für den Slicer, außerdem STL und **STEP** für andere CAD-Programme.
 
 **Bauteile und Beziehungen**
-- **Neues Bauteil** legt ein Bauteil an und macht es aktiv: Neue Skizzen und Features landen dort und wirken nur auf dessen Körper. Im Browser aktiviert der Kreis neben dem Namen ein Bauteil, das Auge blendet es aus.
+- **Neues Bauteil** legt ein Bauteil an und macht es aktiv: Neue Skizzen und Features landen dort und wirken nur auf dessen Körper. Im Browser aktiviert der Kreis neben dem Namen ein Bauteil, das Auge blendet es aus. Jedes Bauteil (auch das Hauptbauteil) hat in den Eigenschaften eine *Farbe*: Farbfelder, freier Farbwähler oder *Automatisch*; gespeichert wird sie mit dem Design.
 - **Ausrichten** und **Gelenk** (J) legen eine Beziehung an: erst Bezug 1 am stehenden, dann Bezug 2 am beweglichen Bauteil anklicken – eine ebene Fläche (Mitte und Normale), eine Kreiskante (Mittelpunkt und Achse, ideal für Scharniere) oder eine gerade Kante (Kantenmitte, Richtung entlang der Kante). So liegt z. B. die untere Kante eines Bauteils an der oberen Kante eines anderen.
 - **Ausrichtungen** legen nur fest, was die Bezüge sagen, und lassen sich kombinieren:
   - Fläche ↔ Fläche: in einer Ebene (*aufeinander* oder *bündig*, mit Abstand) – Verschieben in der Ebene und Drehen bleiben frei,
@@ -88,6 +88,8 @@ Der Ablauf orientiert sich an Fusion 360:
   - **Anzugsmoment für Druckteile**: aus der zulässigen Flächenpressung unter Kopf, Scheibe und Mutter (bzw. in der Mutterfalle), dem Ausreißen eines ins Bauteil geschnittenen Gewindes oder dem Halt der Einschmelzmutter – für das Material aus den Druckeinstellungen (PLA, PETG, ABS, ASA, TPU), höchstens das Normmoment 8.8. Zum Beispiel M3 in PLA ≈ 0,2 Nm, mit Scheiben ≈ 0,35 Nm; der Wert, der begrenzt, steht dabei, ebenso ob Scheiben mehr erlauben würden. Vorsichtige Richtwerte, keine Datenblattwerte.
   - Das Panel **Stückliste** zählt Schrauben, Muttern und Scheiben aller Verschraubungen und exportiert sie als CSV.
 - Bauteile ohne Beziehung liegen an ihrer eigenen Position und Drehung; *Fixiert* hält ein Bauteil fest. Exportiert wird in der zusammengebauten Lage.
+
+**Aussehen**: Die Farbschemata kommen aus dem daanse board – *Messwarte* (dunkel, Standard), *Messwarte hell*, *Kartenblatt* und *Werkbank*, mit Barlow/JetBrains Mono (Kartenblatt: Source Sans 3/IBM Plex Mono) und der kompakten Schriftgröße des Boards. *Ansicht → Farbschema* schaltet weiter; die Wahl bleibt im Browser. Technisch setzt `packages/ribo-app/src/theme` die Tokens als CSS-Variablen, und ein eigenes PrimeVue-Preset (auf Aura) liest sie – ein Wechsel färbt alles um, auch Raster und Hervorhebungen in der 3D-Ansicht.
 
 **Fenster**: Browser, Zeitleiste, Eigenschaften und 3D-Druck lassen sich am Titel in einen anderen Bereich (links, rechts, unten) ziehen, mit ⧉ herauslösen und als Fenster frei verschieben; am Rand rasten sie wieder ein. Liegen mehrere Panels übereinander, verteilt der Trenner dazwischen die Höhe. „Fensteranordnung zurücksetzen“ stellt den Anfang wieder her.
 

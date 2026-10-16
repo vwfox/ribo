@@ -14,7 +14,6 @@ const props = defineProps<{ document: DocumentService; controller: ViewportContr
 const root = ref<HTMLElement>()
 const container = ref<HTMLElement>()
 let scene: SceneView | undefined
-let colorScheme: MediaQueryList | undefined
 
 const sketchMode = computed(() => props.controller.mode.value === 'sketch')
 
@@ -29,33 +28,23 @@ const status = computed(() => {
 })
 const problemCount = computed(() => props.document.problems.value.length)
 
+/** Scene colours: the bodies keep ribo's teal, sketches, grid and highlights follow the theme */
 function colors(): SceneColors {
-  const dark = document.documentElement.classList.contains('dark-theme')
-  return dark
-    ? {
-        body: '#5eead4',
-        edge: '#0f172a',
-        sketch: '#60a5fa',
-        construction: '#fb923c',
-        highlight: '#f59e0b',
-        region: '#60a5fa',
-        regionPicked: '#3b82f6',
-        plane: '#a78bfa',
-        grid: '#475569',
-        gridMinor: '#334155',
-      }
-    : {
-        body: '#14b8a6',
-        edge: '#134e4a',
-        sketch: '#2563eb',
-        construction: '#ea580c',
-        highlight: '#ea580c',
-        region: '#60a5fa',
-        regionPicked: '#2563eb',
-        plane: '#7c3aed',
-        grid: '#94a3b8',
-        gridMinor: '#cbd5e1',
-      }
+  const root = document.documentElement
+  const token = (name: string, fallback: string) => getComputedStyle(root).getPropertyValue(`--${name}`).trim() || fallback
+  const dark = root.classList.contains('dark-theme')
+  return {
+    body: dark ? '#5eead4' : '#14b8a6',
+    edge: dark ? '#0f172a' : '#134e4a',
+    sketch: token('color-accent', dark ? '#60a5fa' : '#2563eb'),
+    construction: dark ? '#fb923c' : '#ea580c',
+    highlight: token('color-brandFill', dark ? '#f59e0b' : '#ea580c'),
+    region: token('color-accent', '#60a5fa'),
+    regionPicked: token('color-accent', '#2563eb'),
+    plane: dark ? '#a78bfa' : '#7c3aed',
+    grid: token('color-outline', dark ? '#475569' : '#94a3b8'),
+    gridMinor: token('color-divider', dark ? '#334155' : '#cbd5e1'),
+  }
 }
 
 /** The profile feature whose regions are offered for picking */
@@ -112,6 +101,7 @@ function updateBodies() {
   const hadBodies = scene.hasBodies()
   const design = props.document.design.value
   scene.setPlacements(props.document.placements.value, props.document.componentIndexOf(design.activeComponent))
+  scene.setComponentColors([design.color ?? '', ...design.components.toArray().map((c) => c.color ?? '')])
   // The result is shown, also while editing a fillet; its edges are picked on the bodies before it
   scene.setBodies(shownBodies(props.document.result.value))
   scene.setPickBodies(modifierFeature.value ? shownBodies(props.document.inputResult.value) : undefined)
@@ -390,8 +380,8 @@ onMounted(() => {
   })
   scene.view('iso')
   props.controller.attach(scene)
-  colorScheme = window.matchMedia('(prefers-color-scheme: dark)')
-  colorScheme.addEventListener('change', onColorScheme)
+  // The theme is switched in the shell; it says so with this event
+  window.addEventListener('ribo:theme', onColorScheme)
   window.addEventListener('keydown', onKeyDown)
 
   watch(
@@ -426,7 +416,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeyDown)
-  colorScheme?.removeEventListener('change', onColorScheme)
+  window.removeEventListener('ribo:theme', onColorScheme)
   props.controller.detach()
   scene?.dispose()
   scene = undefined

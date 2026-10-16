@@ -173,39 +173,51 @@ const ON_SURFACE = { depthTest: true, depthWrite: false, polygonOffset: true, po
 export function cylinderOf(data: BodyMesh, faceIndex: number, near: THREE.Vector3): { origin: Vec3; z: Vec3; x: Vec3; radius: number } | undefined {
   const face = data.faces[faceIndex]
   if (!face) return undefined
-  const indexes = new Set<number>()
-  for (let i = face.start; i < face.start + face.count; i++) indexes.add(data.triangles[i]!)
+  // From the triangles themselves: vertices may be shared with neighbouring faces, and their normals with them
+  const vertex = (i: number) => new THREE.Vector3(data.vertices[i * 3], data.vertices[i * 3 + 1], data.vertices[i * 3 + 2])
   const points: THREE.Vector3[] = []
   const normals: THREE.Vector3[] = []
-  for (const i of indexes) {
-    points.push(new THREE.Vector3(data.vertices[i * 3], data.vertices[i * 3 + 1], data.vertices[i * 3 + 2]))
-    normals.push(new THREE.Vector3(data.normals[i * 3], data.normals[i * 3 + 1], data.normals[i * 3 + 2]).normalize())
+  for (let i = face.start; i + 2 < face.start + face.count; i += 3) {
+    const a = vertex(data.triangles[i]!)
+    const b = vertex(data.triangles[i + 1]!)
+    const c = vertex(data.triangles[i + 2]!)
+    const n = b.clone().sub(a).cross(c.clone().sub(a))
+    if (n.lengthSq() < 1e-12) continue
+    normals.push(n.normalize())
+    points.push(a, b, c)
   }
-  if (points.length < 6) return undefined
-  // The axis: square to the two most different normals
+  if (normals.length < 4) return undefined
+  // The axis: square to the two most different normals, and to all of them
   const first = normals[0]!
   const other = normals.reduce((a, b) => (b.clone().cross(first).lengthSq() > a.clone().cross(first).lengthSq() ? b : a))
   const axis = first.clone().cross(other)
   if (axis.lengthSq() < 1e-4) return undefined
   axis.normalize()
   if (normals.some((n) => Math.abs(n.dot(axis)) > 0.05)) return undefined
-  // Square to the axis, every point is its centre plus radius times its normal
-  const flat = (v: THREE.Vector3) => v.clone().addScaledVector(axis, -v.dot(axis))
-  const P = points.map(flat)
-  const N = normals.map(flat)
-  const meanP = P.reduce((a, b) => a.add(b), new THREE.Vector3()).divideScalar(P.length)
-  const meanN = N.reduce((a, b) => a.add(b), new THREE.Vector3()).divideScalar(N.length)
-  let top = 0
-  let bottom = 0
-  P.forEach((p, i) => {
-    const dn = N[i]!.clone().sub(meanN)
-    top += p.clone().sub(meanP).dot(dn)
-    bottom += dn.lengthSq()
-  })
-  if (bottom < 1e-9) return undefined
-  const r = top / bottom
-  const centre = meanP.clone().addScaledVector(meanN, -r)
-  if (P.some((p, i) => p.clone().sub(N[i]!.clone().multiplyScalar(r)).distanceTo(centre) > Math.max(0.05, Math.abs(r) * 0.03))) return undefined
+  // Square to the axis the points lie on a circle: fitted by least squares, x² + y² + D·x + E·y + F = 0
+  const u = Math.abs(axis.x) < 0.9 ? new THREE.Vector3(1, 0, 0).cross(axis).normalize() : new THREE.Vector3(0, 1, 0).cross(axis).normalize()
+  const v = axis.clone().cross(u)
+  const m = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+  const r3 = [0, 0, 0]
+  for (const p of points) {
+    const x = p.dot(u)
+    const y = p.dot(v)
+    const row = [x, y, 1]
+    const rhs = -(x * x + y * y)
+    for (let i = 0; i < 3; i++) {
+      r3[i]! += row[i]! * rhs
+      for (let j = 0; j < 3; j++) m[i * 3 + j]! += row[i]! * row[j]!
+    }
+  }
+  const matrix = new THREE.Matrix3().set(m[0]!, m[1]!, m[2]!, m[3]!, m[4]!, m[5]!, m[6]!, m[7]!, m[8]!)
+  if (Math.abs(matrix.determinant()) < 1e-12) return undefined
+  const [D, E, F] = new THREE.Vector3(r3[0], r3[1], r3[2]).applyMatrix3(matrix.invert()).toArray()
+  const cx = -D / 2
+  const cy = -E / 2
+  const radius = Math.sqrt(Math.max(0, cx * cx + cy * cy - F))
+  if (!(radius > 1e-6)) return undefined
+  if (points.some((p) => Math.abs(Math.hypot(p.dot(u) - cx, p.dot(v) - cy) - radius) > Math.max(0.05, radius * 0.03))) return undefined
+  const centre = u.clone().multiplyScalar(cx).addScaledVector(v, cy)
   // The end nearer the pointer, and the axis pointing away from the face there
   const along = points.map((p) => p.dot(axis))
   const low = Math.min(...along)
@@ -213,10 +225,10 @@ export function cylinderOf(data: BodyMesh, faceIndex: number, near: THREE.Vector
   const atHigh = Math.abs(near.dot(axis) - high) < Math.abs(near.dot(axis) - low)
   const origin = centre.clone().addScaledVector(axis, atHigh ? high : low)
   const z = atHigh ? axis : axis.clone().negate()
-  const x = flat(near).sub(centre)
-  if (x.lengthSq() < 1e-9) x.copy(new THREE.Vector3(1, 0, 0).cross(z).lengthSq() > 1e-6 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0))
+  const x = near.clone().addScaledVector(axis, -near.dot(axis)).sub(centre)
+  if (x.lengthSq() < 1e-9) x.copy(u)
   x.addScaledVector(z, -x.dot(z)).normalize()
-  return { origin: origin.toArray() as Vec3, z: z.toArray() as Vec3, x: x.toArray() as Vec3, radius: Math.abs(r) }
+  return { origin: origin.toArray() as Vec3, z: z.toArray() as Vec3, x: x.toArray() as Vec3, radius }
 }
 
 /** A screw to show: its solids along the axis from the seat (see ribo-parts) */
@@ -377,6 +389,8 @@ export class SceneView {
   private handle: DragHandle | undefined
   private handleDrag: { offset: number } | undefined
   private readonly jointMarkers = new THREE.Group()
+  /** Colours chosen for the components, by component index; empty picks one */
+  private componentColors: string[] = []
   /** Screws, washers and nuts of the screwed joints */
   private readonly fasteners = new THREE.Group()
   /** Gizmo moving a whole component; it sits on a stand-in at the centre of the component's bodies */
@@ -550,7 +564,7 @@ export class SceneView {
       geometry.setIndex(new THREE.BufferAttribute(data.triangles, 1))
       const material = new THREE.MeshStandardMaterial({
         // Each component its own colour, so an assembly reads at a glance
-        color: data.component === 0 ? this.colors.body : COMPONENT_COLORS[(data.component - 1) % COMPONENT_COLORS.length]!,
+        color: this.componentColors[data.component] || (data.component === 0 ? this.colors.body : COMPONENT_COLORS[(data.component - 1) % COMPONENT_COLORS.length]!),
         roughness: 0.55,
         metalness: 0.05,
         // Both sides: a face OpenCascade hands over reversed must not vanish
@@ -706,6 +720,11 @@ export class SceneView {
     this.jointPicking = on === true ? 'any' : on
     clearGroup(this.hover)
     this.requestRender()
+  }
+
+  /** The colours chosen for the components (by component index, '' for automatic); used by the next setBodies */
+  setComponentColors(colors: string[]): void {
+    this.componentColors = colors
   }
 
   /** Shows the standard parts of the screws, in world coordinates; replaces the ones shown */

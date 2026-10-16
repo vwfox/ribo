@@ -32,6 +32,7 @@ import ToggleSwitch from 'primevue/toggleswitch'
 import Slider from 'primevue/slider'
 import { HoleType, type Hole } from 'ribo-model'
 import ExpressionField from './ExpressionField.vue'
+import ColorField from './ColorField.vue'
 import { HOLE_PRESETS } from './holePresets'
 import { NUTS, SCREWS, SIZES, partName, reportFastening, screwStandard, torqueFor, viewOf } from 'ribo-parts'
 import './fields.css'
@@ -474,6 +475,7 @@ function setAxis(value: string) {
         <ToggleSwitch :model-value="design.visible" @update:model-value="design.visible = $event" />
         <span>Hauptbauteil sichtbar</span>
       </label>
+      <ColorField label="Farbe" :model-value="design.color" @update:model-value="design.color = $event" />
       <p v-if="!design.features.size()" class="ribo-hint">
         Starte mit <strong>Skizze erstellen</strong> (S): Ebene oder ebene Fläche anklicken, zeichnen, bemaßen, Skizze beenden. Dann
         <strong>Extrudieren</strong> (E) und die Profile im Ansichtsfenster anklicken. Alle Maße sind Ausdrücke in mm bzw. Grad und können
@@ -681,6 +683,7 @@ function setAxis(value: string) {
         <ToggleSwitch :model-value="selected.visible" @update:model-value="selected.visible = $event" />
         <span>Sichtbar</span>
       </label>
+      <ColorField label="Farbe" :model-value="selected.color" @update:model-value="selected.color = $event" />
       <div class="ribo-field">
         <span class="ribo-field-label">Lage (gilt, solange kein Gelenk das Bauteil setzt)</span>
       </div>

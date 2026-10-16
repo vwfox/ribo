@@ -25,8 +25,9 @@ export class DesignImpl extends BasicEObject implements Design {
   static readonly FEATURES: number = 2;
   static readonly ROLLBACK: number = 3;
   static readonly VISIBLE: number = 4;
-  static readonly COMPONENTS: number = 5;
-  static readonly ACTIVE_COMPONENT: number = 6;
+  static readonly COLOR: number = 5;
+  static readonly COMPONENTS: number = 6;
+  static readonly ACTIVE_COMPONENT: number = 7;
 
   // Private fields
   private _name?: string;
@@ -34,6 +35,7 @@ export class DesignImpl extends BasicEObject implements Design {
   private _features!: EList<Feature>;
   private _rollback: number = -1;
   private _visible: boolean = true;
+  private _color: string = "";
   private _components!: EList<Component>;
   private _activeComponent?: Component;
 
@@ -131,6 +133,30 @@ export class DesignImpl extends BasicEObject implements Design {
     }
   }
 
+  get color(): string {
+    return this._color!;
+  }
+
+  set color(value: string) {
+    const oldValue = this._color;
+    this._color = value;
+    if (this.eDeliver()) {
+      this.eNotify({
+        getNotifier: () => this,
+        getEventType: () => 1, // SET
+        getFeature: () => this.eClass().getEStructuralFeature(DesignImpl.COLOR),
+        getOldValue: () => oldValue,
+        getNewValue: () => value,
+        getPosition: () => -1,
+        wasSet: () => true,
+        isTouch: () => false,
+        isReset: () => false,
+        getFeatureID: () => DesignImpl.COLOR,
+        merge: () => false
+      });
+    }
+  }
+
   get components(): EList<Component> {
     if (!this._components) {
       this._components = createContainmentEList<any>(this, this.eClass().getEStructuralFeature('components') as EReference);
@@ -180,6 +206,8 @@ export class DesignImpl extends BasicEObject implements Design {
         return this.rollback;
       case DesignImpl.VISIBLE:
         return this.visible;
+      case DesignImpl.COLOR:
+        return this.color;
       case DesignImpl.COMPONENTS:
         return this.components;
       case DesignImpl.ACTIVE_COMPONENT:
@@ -217,6 +245,10 @@ export class DesignImpl extends BasicEObject implements Design {
         this.visible = newValue as boolean;
         super.eSet(feature, newValue);
         break;
+      case DesignImpl.COLOR:
+        this.color = newValue as string;
+        super.eSet(feature, newValue);
+        break;
       case DesignImpl.COMPONENTS:
         this.components.clear();
         this.components.addAll(newValue as any[]);
@@ -247,6 +279,8 @@ export class DesignImpl extends BasicEObject implements Design {
         return this._rollback !== -1;
       case DesignImpl.VISIBLE:
         return this._visible !== true;
+      case DesignImpl.COLOR:
+        return this._color !== "";
       case DesignImpl.COMPONENTS:
         return this._components !== undefined && !this._components.isEmpty();
       case DesignImpl.ACTIVE_COMPONENT:
@@ -276,6 +310,9 @@ export class DesignImpl extends BasicEObject implements Design {
         return;
       case DesignImpl.VISIBLE:
         this._visible = true;
+        return;
+      case DesignImpl.COLOR:
+        this._color = "";
         return;
       case DesignImpl.COMPONENTS:
         if (this._components) this._components.clear();

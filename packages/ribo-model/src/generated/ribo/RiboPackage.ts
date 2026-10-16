@@ -39,6 +39,7 @@ export class RiboPackage extends BasicEPackage {
     DESIGN__FEATURES: null as unknown as EAttribute | EReference,
     DESIGN__ROLLBACK: null as unknown as EAttribute | EReference,
     DESIGN__VISIBLE: null as unknown as EAttribute | EReference,
+    DESIGN__COLOR: null as unknown as EAttribute | EReference,
     DESIGN__COMPONENTS: null as unknown as EAttribute | EReference,
     DESIGN__ACTIVE_COMPONENT: null as unknown as EAttribute | EReference,
     PARAMETER: null as unknown as EClass,
@@ -141,6 +142,7 @@ export class RiboPackage extends BasicEPackage {
     COMPONENT__NAME: null as unknown as EAttribute | EReference,
     COMPONENT__GROUNDED: null as unknown as EAttribute | EReference,
     COMPONENT__VISIBLE: null as unknown as EAttribute | EReference,
+    COMPONENT__COLOR: null as unknown as EAttribute | EReference,
     COMPONENT__ROLLBACK: null as unknown as EAttribute | EReference,
     COMPONENT__POSITION_X: null as unknown as EAttribute | EReference,
     COMPONENT__POSITION_Y: null as unknown as EAttribute | EReference,
@@ -259,6 +261,14 @@ export class RiboPackage extends BasicEPackage {
     design_visible.setUpperBound(1);
     designClass.getEStructuralFeatures().push(design_visible);
     RiboPackage.Literals.DESIGN__VISIBLE = design_visible;
+
+    // Create color feature
+    const design_color = new BasicEAttribute();
+    design_color.setName('color');
+    design_color.setLowerBound(1);
+    design_color.setUpperBound(1);
+    designClass.getEStructuralFeatures().push(design_color);
+    RiboPackage.Literals.DESIGN__COLOR = design_color;
 
     // Create components feature
     const design_components = new BasicEReference();
@@ -1122,6 +1132,14 @@ export class RiboPackage extends BasicEPackage {
     componentClass.getEStructuralFeatures().push(component_visible);
     RiboPackage.Literals.COMPONENT__VISIBLE = component_visible;
 
+    // Create color feature
+    const component_color = new BasicEAttribute();
+    component_color.setName('color');
+    component_color.setLowerBound(1);
+    component_color.setUpperBound(1);
+    componentClass.getEStructuralFeatures().push(component_color);
+    RiboPackage.Literals.COMPONENT__COLOR = component_color;
+
     // Create rollback feature
     const component_rollback = new BasicEAttribute();
     component_rollback.setName('rollback');
@@ -1548,6 +1566,7 @@ export class RiboPackage extends BasicEPackage {
     (RiboPackage.Literals.DESIGN__FEATURES as BasicEReference).setEType(RiboPackage.Literals.FEATURE);
     (RiboPackage.Literals.DESIGN__ROLLBACK as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EInt')!);
     (RiboPackage.Literals.DESIGN__VISIBLE as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EBoolean')!);
+    (RiboPackage.Literals.DESIGN__COLOR as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
     (RiboPackage.Literals.DESIGN__COMPONENTS as BasicEReference).setEType(RiboPackage.Literals.COMPONENT);
     (RiboPackage.Literals.DESIGN__ACTIVE_COMPONENT as BasicEReference).setEType(RiboPackage.Literals.COMPONENT);
     (RiboPackage.Literals.PARAMETER__NAME as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
@@ -1617,6 +1636,7 @@ export class RiboPackage extends BasicEPackage {
     (RiboPackage.Literals.COMPONENT__NAME as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
     (RiboPackage.Literals.COMPONENT__GROUNDED as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EBoolean')!);
     (RiboPackage.Literals.COMPONENT__VISIBLE as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EBoolean')!);
+    (RiboPackage.Literals.COMPONENT__COLOR as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
     (RiboPackage.Literals.COMPONENT__ROLLBACK as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EInt')!);
     (RiboPackage.Literals.COMPONENT__POSITION_X as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);
     (RiboPackage.Literals.COMPONENT__POSITION_Y as BasicEAttribute).setEType(getEcorePackage().getEClassifier('EString')!);

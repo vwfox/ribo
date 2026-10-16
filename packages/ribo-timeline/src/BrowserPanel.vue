@@ -118,7 +118,7 @@ const groups = (node: Node) =>
         :class="{ active: model.active === node.index, selected: node.component ? isSelected(node.component) : !document.selection.value }"
       >
         <i class="pi caret" :class="closed.has(`c${node.index}`) ? 'pi-chevron-right' : 'pi-chevron-down'" @click="toggle(`c${node.index}`)" />
-        <i class="pi pi-th-large" />
+        <i class="pi pi-th-large" :style="{ color: (node.component ? node.component.color : document.design.value.color) || undefined }" />
         <span
           class="name"
           :title="node.index === 0 ? 'Das Design selbst: alles, was nicht in einem eigenen Bauteil liegt' : ''"
